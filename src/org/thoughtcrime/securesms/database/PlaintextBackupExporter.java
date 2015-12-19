@@ -4,6 +4,7 @@ package org.thoughtcrime.securesms.database;
 import android.content.Context;
 
 import org.thoughtcrime.securesms.crypto.MasterSecret;
+import org.thoughtcrime.securesms.database.model.DisplayRecord;
 import org.thoughtcrime.securesms.database.model.MediaMmsMessageRecord;
 import org.thoughtcrime.securesms.database.model.MessageRecord;
 import org.thoughtcrime.securesms.database.model.SmsMessageRecord;
@@ -56,7 +57,7 @@ public class PlaintextBackupExporter {
                                         threadAddress, record.getDateReceived(),
                                         MmsSmsColumns.Types.translateToSystemBaseType(record.getType()),
                                         null, record.getDisplayBody().toString(), null,
-                                        1, record.getDeliveryStatus());
+                                        1, record.isDelivered() ? SmsDatabase.Status.STATUS_COMPLETE : record.getDeliveryStatus());
 
         writer.writeItem(item);
       }
@@ -84,7 +85,7 @@ public class PlaintextBackupExporter {
                         threadAddress, mmsRecord.getDateReceived(),
                         MmsSmsColumns.Types.translateToSystemBaseType(mmsRecord.getType()),
                         null, mmsRecord.getDisplayBody().toString(), null,
-                        1, mmsRecord.getDeliveryStatus());
+                        1, mmsRecord.isDelivered() ? SmsDatabase.Status.STATUS_COMPLETE : mmsRecord.getDeliveryStatus());
 
         writer.writeItem(item);
       }
