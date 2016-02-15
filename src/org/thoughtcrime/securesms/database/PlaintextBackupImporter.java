@@ -31,7 +31,7 @@ public class PlaintextBackupImporter {
       XmlBackup      backup          = new XmlBackup(getPlaintextExportFile().getAbsolutePath());
       MasterCipher   masterCipher    = new MasterCipher(masterSecret);
       Set<Long>      modifiedThreads = new HashSet<>();
-      XmlBackup.XmlBackupItem item;
+      XmlBackupItem item;
 
       while ((item = backup.getNext()) != null) {
         if (item.getAddress() == null || item.getAddress().equals("null"))
