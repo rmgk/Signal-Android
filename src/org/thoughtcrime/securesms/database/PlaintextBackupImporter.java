@@ -41,13 +41,9 @@ public class PlaintextBackupImporter {
         if (!isAppropriateTypeForImport(msg.getType()))
           continue; // TODO: check whether this is sound for MMS as well
 
-        long threadId;
-        if (msg.getThreadAddress() != null) {
-          threadId = threads.getThreadIdFor(RecipientFactory.getRecipientsFromString(context, msg.getThreadAddress(), false));
-        } else {
-          Recipients recipients = RecipientFactory.getRecipientsFromString(context, msg.getAddress(), false);
-          threadId = threads.getThreadIdFor(recipients);
-        }
+        final String recipientAddress = (msg.getAddress() == null) ? msg.getAddress() : msg.getThreadAddress()
+        final Recipients recipients = RecipientFactory.getRecipientsFromString(context, recipientAddress, false);
+        final long threadId = threads.getThreadIdFor(recipients);
 
         SQLiteStatement statement;
         if (msg instanceof XmlBackupItem.Sms) {
