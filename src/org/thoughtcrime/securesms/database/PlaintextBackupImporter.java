@@ -50,7 +50,7 @@ public class PlaintextBackupImporter {
           statement = smsDatabase.createInsertStatement(smsTransaction);
           addMsgToStatement(statement, (XmlBackupItem.Sms) msg, threadId, masterCipher);
         } else {
-          statement = smsDatabase.createInsertStatement(mmsTransaction);
+          statement = mmsDatabase.createInsertStatement(mmsTransaction);
           addMsgToStatement(statement, (XmlBackupItem.Mms) msg, threadId, masterCipher);
         }
         statement.execute();
