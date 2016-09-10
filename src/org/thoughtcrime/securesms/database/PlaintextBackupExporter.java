@@ -34,8 +34,9 @@ public class PlaintextBackupExporter {
   private static void exportPlaintext(Context context, MasterSecret masterSecret)
       throws NoExternalStorageException, IOException
   {
-    int count               = DatabaseFactory.getSmsDatabase(context).getMessageCount();
-    XmlBackup.Writer writer = new XmlBackup.Writer(getPlaintextExportFile().getAbsolutePath(), count);
+    int smsCount = DatabaseFactory.getSmsDatabase(context).getMessageCount();
+    int mmsCount = DatabaseFactory.getMmsDatabase(context).getMessageCount();
+    XmlBackup.Writer writer = new XmlBackup.Writer(getPlaintextExportFile().getAbsolutePath(), smsCount + mmsCount);
     ThreadDatabase threads  = DatabaseFactory.getThreadDatabase(context);
 
     SmsMessageRecord record;

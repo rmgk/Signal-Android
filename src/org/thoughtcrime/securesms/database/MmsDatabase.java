@@ -409,6 +409,21 @@ public class MmsDatabase extends MessagingDatabase {
     return readerFor(masterSecret, rawQuery(skip, limit));
   }
 
+  public int getMessageCount() {
+    SQLiteDatabase db = databaseHelper.getReadableDatabase();
+    Cursor cursor     = null;
+
+    try {
+      cursor = db.query(TABLE_NAME, new String[] {"COUNT(*)"}, null, null, null, null, null);
+
+      if (cursor != null && cursor.moveToFirst()) return cursor.getInt(0);
+      else                                        return 0;
+    } finally {
+      if (cursor != null)
+        cursor.close();
+    }
+  }
+
   public Reader getExpireStartedMessages(@Nullable MasterSecret masterSecret) {
     String where = EXPIRE_STARTED + " > 0";
     return readerFor(masterSecret, rawQuery(where, null));
