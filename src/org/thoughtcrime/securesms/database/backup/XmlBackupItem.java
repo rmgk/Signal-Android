@@ -49,15 +49,15 @@ public abstract class XmlBackupItem {
   protected int status;
 
   public XmlBackupItem(@NonNull MessageRecord record, @Nullable String threadAddress) {
-    this(record.getIndividualRecipient().getNumber(),
-          threadAddress,
-          record.getDateReceived(),
-          record.getDateSent(),
-          MmsSmsColumns.Types.translateToSystemBaseType(record.getType()),
-          null,
-          record.getDisplayBody().toString(),
-          1,
-          record.isDelivered() ? SmsDatabase.Status.STATUS_COMPLETE : record.getDeliveryStatus());
+    this.address = record.getIndividualRecipient().getNumber();
+    this.threadAddress = threadAddress;
+    this.date = record.getDateReceived();
+    this.dateSent = record.getDateSent();
+    this.type = MmsSmsColumns.Types.translateToSystemBaseType(record.getType());
+    this.subject = null;
+    this.body = record.getDisplayBody().toString();
+    this.read = 1;
+    this.status = record.isDelivered() ? SmsDatabase.Status.STATUS_COMPLETE : record.getDeliveryStatus();
   }
 
   public XmlBackupItem(@NonNull XmlPullParser parser) {
@@ -86,19 +86,6 @@ public abstract class XmlBackupItem {
       default:
         // ignore unkown attributes
     }
-  }
-
-  private XmlBackupItem(String address, String threadAddress, long date, long dateSent, int type, String subject,
-                        String body, int read, int status) {
-    this.address = address;
-    this.threadAddress = threadAddress;
-    this.date = date;
-    this.dateSent = dateSent;
-    this.type = type;
-    this.subject = subject;
-    this.body = body;
-    this.read = read;
-    this.status = status;
   }
 
   public String getAddress() {
