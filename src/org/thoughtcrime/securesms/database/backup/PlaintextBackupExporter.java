@@ -19,7 +19,9 @@ import org.thoughtcrime.securesms.util.StorageUtil;
 import org.thoughtcrime.securesms.recipients.Recipient;
 import org.thoughtcrime.securesms.recipients.Recipients;
 
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 
 public class PlaintextBackupExporter {
@@ -41,29 +43,20 @@ public class PlaintextBackupExporter {
   {
     int smsCount = DatabaseFactory.getSmsDatabase(context).getMessageCount();
     int mmsCount = DatabaseFactory.getMmsDatabase(context).getMessageCount();
-    XmlBackup.Writer writer = new XmlBackup.Writer(getPlaintextExportFile().getAbsolutePath(), smsCount + mmsCount);
+    BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(getPlaintextExportFile().getAbsolutePath(), false));
+    XmlBackupWriter writer = new XmlBackupWriter(bufferedWriter, smsCount + mmsCount);
     ThreadDatabase threads  = DatabaseFactory.getThreadDatabase(context);
 
-    SmsMessageRecord record;
-    SmsDatabase.Reader reader = null;
-    int skip                            = 0;
-    final int ROW_LIMIT                 = 500;
+    exportSms(context, masterSecret, writer, threads);
+    exportMms(context, masterSecret, writer, threads);
 
-    do {
-      if (reader != null)
-        reader.close();
+    writer.close();
+  }
 
-      reader = DatabaseFactory.getEncryptingSmsDatabase(context).getMessages(masterSecret, skip, ROW_LIMIT);
+  private static void exportMms(Context context, MasterSecret masterSecret, XmlBackupWriter writer, ThreadDatabase threads) throws IOException {
+    final int ROW_LIMIT = 500;
+    int skip = 0;
 
-      while ((record = reader.getNext()) != null) {
-        String groupAddress = getGroupAddress(record, threads);
-        writer.writeItem(new XmlBackupItem.Sms(record, groupAddress));
-      }
-
-      skip += ROW_LIMIT;
-    } while (reader.getCount() > 0);
-
-    skip = 0;
     MmsDatabase.Reader mmsReader = null;
     do {
       if (mmsReader != null)
@@ -83,8 +76,27 @@ public class PlaintextBackupExporter {
 
       skip += ROW_LIMIT;
     } while (mmsReader.getCount() > 0);
+  }
 
-    writer.close();
+  private static void exportSms(Context context, MasterSecret masterSecret, XmlBackupWriter writer, ThreadDatabase threads) throws IOException {
+    final int ROW_LIMIT = 500;
+    int skip = 0;
+
+    SmsDatabase.Reader reader = null;
+    do {
+      if (reader != null)
+        reader.close();
+
+      reader = DatabaseFactory.getEncryptingSmsDatabase(context).getMessages(masterSecret, skip, ROW_LIMIT);
+
+      SmsMessageRecord record;
+      while ((record = reader.getNext()) != null) {
+        String groupAddress = getGroupAddress(record, threads);
+        writer.writeItem(new XmlBackupItem.Sms(record, groupAddress));
+      }
+
+      skip += ROW_LIMIT;
+    } while (reader.getCount() > 0);
   }
 
   @Nullable

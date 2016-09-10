@@ -9,7 +9,7 @@ import android.util.Log;
 import org.thoughtcrime.securesms.crypto.MasterCipher;
 import org.thoughtcrime.securesms.crypto.MasterSecret;
 import org.thoughtcrime.securesms.database.backup.PlaintextBackupExporter;
-import org.thoughtcrime.securesms.database.backup.XmlBackup;
+import org.thoughtcrime.securesms.database.backup.XmlBackupReader;
 import org.thoughtcrime.securesms.database.backup.XmlBackupItem;
 import org.thoughtcrime.securesms.recipients.RecipientFactory;
 import org.thoughtcrime.securesms.recipients.Recipients;
@@ -33,7 +33,7 @@ public class PlaintextBackupImporter {
 
     try {
       ThreadDatabase threads         = DatabaseFactory.getThreadDatabase(context);
-      XmlBackup backup          = new XmlBackup(getPlaintextExportFile().getAbsolutePath());
+      XmlBackupReader backup          = new XmlBackupReader(getPlaintextExportFile().getAbsolutePath());
       MasterCipher   masterCipher    = new MasterCipher(masterSecret);
       Set<Long>      modifiedThreads = new HashSet<>();
       XmlBackupItem msg;
