@@ -7,6 +7,7 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
 
+import com.google.common.base.Charsets;
 import org.thoughtcrime.securesms.database.model.MediaMmsMessageRecord;
 import org.thoughtcrime.securesms.database.model.MessageRecord;
 import org.thoughtcrime.securesms.database.model.NotificationMmsMessageRecord;
@@ -135,18 +136,23 @@ public abstract class XmlBackupItem {
   @NonNull
   public abstract BufferedWriter storeOn(@NonNull BufferedWriter writer) throws IOException;
 
-  @NonNull
-  protected <T> BufferedWriter storeAttribute(@NonNull BufferedWriter writer, @NonNull String name, T value) throws IOException {
+  private static void storeAttribute(@NonNull BufferedWriter writer, @NonNull String name, String value) throws IOException {
     writer.write(name);
     writer.write(OPEN_ATTRIBUTE);
-    writer.write(String.valueOf(value));
+    writer.write(String.valueOf(escapeXML(value)));
     writer.write(CLOSE_ATTRIBUTE);
-
-    return writer;
   }
 
+  private static void storeAttribute(@NonNull BufferedWriter writer, @NonNull String name, int value) throws IOException {
+    storeAttribute(writer, name, String.valueOf(value));
+  }
+  private static void storeAttribute(@NonNull BufferedWriter writer, @NonNull String name, long value) throws IOException {
+    storeAttribute(writer, name, String.valueOf(value));
+  }
+
+
   @Nullable
-  protected String escapeXML(String s) {
+  private static String escapeXML(String s) {
     if (TextUtils.isEmpty(s)) return s;
 
     Matcher matcher = PATTERN.matcher(s.replace("&", "&amp;")
@@ -226,16 +232,16 @@ public abstract class XmlBackupItem {
       writer.write(OPEN_TAG_SMS);
 
       storeAttribute(writer, TextBasedSmsColumns.PROTOCOL, protocol);
-      storeAttribute(writer, TextBasedSmsColumns.ADDRESS, escapeXML(address));
+      storeAttribute(writer, TextBasedSmsColumns.ADDRESS, address);
       if (threadAddress != null && !threadAddress.equals(address)) {
         // aka group address
-        storeAttribute(writer, THREAD_ADDRESS, escapeXML(threadAddress));
+        storeAttribute(writer, THREAD_ADDRESS, threadAddress);
       }
       storeAttribute(writer, TextBasedSmsColumns.DATE, date);
       storeAttribute(writer, TextBasedSmsColumns.DATE_SENT, dateSent);
       storeAttribute(writer, TextBasedSmsColumns.TYPE, type);
-      storeAttribute(writer, TextBasedSmsColumns.SUBJECT, escapeXML(subject));
-      storeAttribute(writer, TextBasedSmsColumns.BODY, escapeXML(body));
+      storeAttribute(writer, TextBasedSmsColumns.SUBJECT, subject);
+      storeAttribute(writer, TextBasedSmsColumns.BODY, body);
       storeAttribute(writer, TextBasedSmsColumns.SERVICE_CENTER, serviceCenter);
       storeAttribute(writer, TextBasedSmsColumns.READ, read);
       storeAttribute(writer, TextBasedSmsColumns.STATUS, status);
@@ -257,8 +263,10 @@ public abstract class XmlBackupItem {
 
     // XML tags
     public static final String OPEN_TAG_MMS    = " <mms ";
-    public static final String OPEN_TAG_PART   = "  <part ";
+    public static final String OPEN_TAG_PARTS  = "   <parts>";
+    public static final String OPEN_TAG_PART   = "   <part ";
     public static final String CLOSE_TAG_MMS   = " </mms> ";
+    public static final String CLOSE_TAG_PARTS = "   </parts>";
 
     // character sets
     public static final int UTF_8 = 106;
@@ -357,8 +365,9 @@ public abstract class XmlBackupItem {
       }
     }
 
+    @Nullable
     public String getContentLocation() {
-      return contentLocation == null ? null : new String(contentLocation);
+      return (contentLocation == null) ? null : new String(contentLocation, Charsets.UTF_8);
     }
 
     public long getMessageSize() {
@@ -376,8 +385,9 @@ public abstract class XmlBackupItem {
       return subscriptionId;
     }
 
+    @Nullable
     public String getTransactionId() {
-      return transactionId == null ? null : new String(transactionId);
+      return (transactionId == null) ? null : new String(transactionId, Charsets.UTF_8);
     }
 
     @NonNull
@@ -385,23 +395,23 @@ public abstract class XmlBackupItem {
       writer.write(OPEN_TAG_MMS);
 
       storeAttribute(writer, BaseMmsColumns.TEXT_ONLY, 1);              // optional
-      storeAttribute(writer, TextBasedSmsColumns.ADDRESS, escapeXML(address));
+      storeAttribute(writer, TextBasedSmsColumns.ADDRESS, address);
       if (threadAddress != null && !threadAddress.equals(address)) {
         // aka group address
-        storeAttribute(writer, THREAD_ADDRESS, escapeXML(threadAddress));
+        storeAttribute(writer, THREAD_ADDRESS, threadAddress);
       }
       storeAttribute(writer, TextBasedSmsColumns.DATE, date);
       storeAttribute(writer, TextBasedSmsColumns.DATE_SENT, dateSent);
       storeAttribute(writer, BaseMmsColumns.MESSAGE_BOX, type);
-      storeAttribute(writer, BaseMmsColumns.SUBJECT, escapeXML(subject));
+      storeAttribute(writer, BaseMmsColumns.SUBJECT, subject);
       storeAttribute(writer, TextBasedSmsColumns.READ, read);
       storeAttribute(writer, BaseMmsColumns.STATUS, status);
 
 //      storeAttribute(writer, BaseMmsColumns.CONTENT_CLASS, null);
 //      storeAttribute(writer, BaseMmsColumns.SUBJECT_CHARSET, 106);
 //      storeAttribute(writer, BaseMmsColumns.RETRIEVE_STATUS, "128");
-      storeAttribute(writer, BaseMmsColumns.CONTENT_LOCATION, contentLocation);
-      storeAttribute(writer, BaseMmsColumns.TRANSACTION_ID, transactionId);
+      storeAttribute(writer, BaseMmsColumns.CONTENT_LOCATION, getContentLocation());
+      storeAttribute(writer, BaseMmsColumns.TRANSACTION_ID, getTransactionId());
 //      storeAttribute(writer, BaseMmsColumns.MESSAGE_CLASS, "personal");
 //      storeAttribute(writer, BaseMmsColumns.DELIVERY_TIME, null);
 //      storeAttribute(writer, BaseMmsColumns.READ_STATUS, null);
@@ -430,6 +440,8 @@ public abstract class XmlBackupItem {
       writer.newLine();
 
       // store message text only
+      writer.write(OPEN_TAG_PARTS);
+      writer.newLine();
       writer.write(OPEN_TAG_PART);
 
       storeAttribute(writer, Telephony.Mms.Part.SEQ, 0);
@@ -442,13 +454,14 @@ public abstract class XmlBackupItem {
       storeAttribute(writer, Telephony.Mms.Part.CONTENT_LOCATION, "text_0.txt");      // should be int?
       storeAttribute(writer, Telephony.Mms.Part.CT_START, null);
       storeAttribute(writer, Telephony.Mms.Part.CT_TYPE, null);
-      storeAttribute(writer, Telephony.Mms.Part.TEXT, escapeXML(body));
+      storeAttribute(writer, Telephony.Mms.Part.TEXT, body);
 //      storeAttribute(writer, DISPLAY_NAME, null);
 //      storeAttribute(writer, SIZE, null);
 
       writer.write(CLOSE_EMPTY_TAG);
       writer.newLine();
-
+      writer.write(CLOSE_TAG_PARTS);
+      writer.newLine();
       writer.write(CLOSE_TAG_MMS);
 
       return writer;
