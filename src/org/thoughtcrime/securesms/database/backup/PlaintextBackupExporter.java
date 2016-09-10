@@ -1,4 +1,4 @@
-package org.thoughtcrime.securesms.database;
+package org.thoughtcrime.securesms.database.backup;
 
 
 import android.content.Context;
@@ -6,6 +6,11 @@ import android.os.Environment;
 import android.support.annotation.Nullable;
 
 import org.thoughtcrime.securesms.crypto.MasterSecret;
+import org.thoughtcrime.securesms.database.DatabaseFactory;
+import org.thoughtcrime.securesms.database.MmsDatabase;
+import org.thoughtcrime.securesms.database.NoExternalStorageException;
+import org.thoughtcrime.securesms.database.SmsDatabase;
+import org.thoughtcrime.securesms.database.ThreadDatabase;
 import org.thoughtcrime.securesms.database.model.MediaMmsMessageRecord;
 import org.thoughtcrime.securesms.database.model.MessageRecord;
 import org.thoughtcrime.securesms.database.model.NotificationMmsMessageRecord;
@@ -40,7 +45,7 @@ public class PlaintextBackupExporter {
     ThreadDatabase threads  = DatabaseFactory.getThreadDatabase(context);
 
     SmsMessageRecord record;
-    EncryptingSmsDatabase.Reader reader = null;
+    SmsDatabase.Reader reader = null;
     int skip                            = 0;
     final int ROW_LIMIT                 = 500;
 
