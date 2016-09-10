@@ -11,6 +11,7 @@ import org.thoughtcrime.securesms.database.model.MessageRecord;
 import org.thoughtcrime.securesms.database.model.NotificationMmsMessageRecord;
 import org.thoughtcrime.securesms.database.model.SmsMessageRecord;
 import org.thoughtcrime.securesms.util.StorageUtil;
+import org.thoughtcrime.securesms.recipients.Recipient;
 import org.thoughtcrime.securesms.recipients.Recipients;
 
 import java.io.File;
@@ -49,8 +50,8 @@ public class PlaintextBackupExporter {
       reader = DatabaseFactory.getEncryptingSmsDatabase(context).getMessages(masterSecret, skip, ROW_LIMIT);
 
       while ((record = reader.getNext()) != null) {
-        String threadAddress = getThreadAddress(record, threads);
-        writer.writeItem(new XmlBackupItem.Sms(record, threadAddress));
+        String groupAddress = getGroupAddress(record, threads);
+        writer.writeItem(new XmlBackupItem.Sms(record, groupAddress));
       }
 
       skip += ROW_LIMIT;
@@ -66,11 +67,11 @@ public class PlaintextBackupExporter {
 
       MessageRecord mmsRecord;
       while ((mmsRecord = mmsReader.getNext()) != null) {
-        String threadAddress = getThreadAddress(mmsRecord, threads);
+        String groupAddress = getGroupAddress(mmsRecord, threads);
         if (mmsRecord instanceof MediaMmsMessageRecord) {
-          writer.writeItem(new XmlBackupItem.Mms((MediaMmsMessageRecord) mmsRecord, threadAddress));
+          writer.writeItem(new XmlBackupItem.Mms((MediaMmsMessageRecord) mmsRecord, groupAddress));
         } else if (mmsRecord instanceof NotificationMmsMessageRecord) {
-          writer.writeItem(new XmlBackupItem.Mms((NotificationMmsMessageRecord) mmsRecord, threadAddress));
+          writer.writeItem(new XmlBackupItem.Mms((NotificationMmsMessageRecord) mmsRecord, groupAddress));
         }
       }
 
@@ -81,11 +82,12 @@ public class PlaintextBackupExporter {
   }
 
   @Nullable
-  private static String getThreadAddress(MessageRecord record, ThreadDatabase threads) {
+  private static String getGroupAddress(MessageRecord record, ThreadDatabase threads) {
     Recipients threadRecipients = threads.getRecipientsForThreadId(record.getThreadId());
     if (threadRecipients == null || threadRecipients.isEmpty()) {
       return null;
     }
-    return threadRecipients.getPrimaryRecipient().getNumber();
+    Recipient rec = threadRecipients.getPrimaryRecipient();
+    return rec.isGroupRecipient() ? rec.getNumber() : null;
   }
 }
