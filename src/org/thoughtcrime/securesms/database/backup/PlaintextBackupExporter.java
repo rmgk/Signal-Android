@@ -68,9 +68,9 @@ public class PlaintextBackupExporter {
       while ((mmsRecord = mmsReader.getNext()) != null) {
         String groupAddress = getGroupAddress(mmsRecord, threads);
         if (mmsRecord instanceof MediaMmsMessageRecord) {
-          writer.writeItem(new XmlBackupItem.Mms((MediaMmsMessageRecord) mmsRecord, groupAddress));
+          new XmlBackupItem.Mms((MediaMmsMessageRecord) mmsRecord, groupAddress).storeOn(writer);
         } else if (mmsRecord instanceof NotificationMmsMessageRecord) {
-          writer.writeItem(new XmlBackupItem.Mms((NotificationMmsMessageRecord) mmsRecord, groupAddress));
+          new XmlBackupItem.Mms((NotificationMmsMessageRecord) mmsRecord, groupAddress).storeOn(writer);
         }
       }
 
@@ -92,7 +92,7 @@ public class PlaintextBackupExporter {
       SmsMessageRecord record;
       while ((record = reader.getNext()) != null) {
         String groupAddress = getGroupAddress(record, threads);
-        writer.writeItem(new XmlBackupItem.Sms(record, groupAddress));
+        new XmlBackupItem.Sms(record, groupAddress).storeOn(writer);
       }
 
       skip += ROW_LIMIT;

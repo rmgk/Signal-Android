@@ -5,7 +5,6 @@ import android.provider.Telephony.BaseMmsColumns;
 import android.provider.Telephony.TextBasedSmsColumns;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
-import android.text.TextUtils;
 
 import com.google.common.base.Charsets;
 import org.thoughtcrime.securesms.database.MmsSmsColumns;
@@ -19,8 +18,6 @@ import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.IOException;
 import java.io.BufferedWriter;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public abstract class XmlBackupItem {
   // common signal attributes
@@ -28,14 +25,8 @@ public abstract class XmlBackupItem {
 //  public static final String CONTACT_NAME    = "contact_name";   // SMS Backup & Restore, optional
   public static final String THREAD_ADDRESS  = "thread_address"; // Signal
 
-  // XML tags
-  public static final String CLOSE_TAG       = ">";
-  public static final String CLOSE_EMPTY_TAG = "/>";
-  public static final String OPEN_ATTRIBUTE  = "=\"";
-  public static final String CLOSE_ATTRIBUTE = "\" ";
 
-  // XML escaping
-  public static final Pattern PATTERN        = Pattern.compile("[^\u0020-\uD7FF]");
+
 
   // common attributes
   protected String address;
@@ -122,53 +113,13 @@ public abstract class XmlBackupItem {
     return status;
   }
 
-  @NonNull
-  public abstract BufferedWriter storeOn(@NonNull BufferedWriter writer) throws IOException;
-
-  private static void storeAttribute(@NonNull BufferedWriter writer, @NonNull String name, String value) throws IOException {
-    writer.write(name);
-    writer.write(OPEN_ATTRIBUTE);
-    writer.write(String.valueOf(escapeXML(value)));
-    writer.write(CLOSE_ATTRIBUTE);
-  }
-
-  private static void storeAttribute(@NonNull BufferedWriter writer, @NonNull String name, int value) throws IOException {
-    storeAttribute(writer, name, String.valueOf(value));
-  }
-  private static void storeAttribute(@NonNull BufferedWriter writer, @NonNull String name, long value) throws IOException {
-    storeAttribute(writer, name, String.valueOf(value));
-  }
-
-
-  @Nullable
-  private static String escapeXML(String s) {
-    if (TextUtils.isEmpty(s)) return s;
-
-    Matcher matcher = PATTERN.matcher(s.replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace("\"", "&quot;")
-            .replace("'", "&apos;"));
-    StringBuffer st = new StringBuffer();
-
-    while (matcher.find()) {
-      String escaped = "";
-      for (char ch : matcher.group(0).toCharArray()) {
-        escaped += ("&#" + ((int) ch) + ";");
-      }
-      matcher.appendReplacement(st, escaped);
-    }
-    matcher.appendTail(st);
-    return st.toString();
-  }
+  public abstract void storeOn(@NonNull XmlBackupWriter writer) throws IOException;
 
   public static class Sms extends XmlBackupItem {
     // SMS attribute names
     public static final String TOA = "toa";       // SMS Backup & Restore, optional
     public static final String SC_TOA = "sc_toa"; // SMS Backup & Restore, optional
 
-    // XML tags
-    public static final String OPEN_TAG_SMS    = " <sms ";
 
     // SMS attributes
     protected int protocol;
@@ -216,28 +167,26 @@ public abstract class XmlBackupItem {
       return serviceCenter;
     }
 
-    @NonNull
-    public BufferedWriter storeOn(@NonNull BufferedWriter writer) throws IOException {
-      writer.write(OPEN_TAG_SMS);
+    @Override
+    public void storeOn(@NonNull XmlBackupWriter writer) throws IOException {
+      writer.openSMS();
 
-      storeAttribute(writer, TextBasedSmsColumns.PROTOCOL, protocol);
-      storeAttribute(writer, TextBasedSmsColumns.ADDRESS, address);
+      writer.storeAttribute(TextBasedSmsColumns.PROTOCOL, protocol);
+      writer.storeAttribute(TextBasedSmsColumns.ADDRESS, address);
       if (threadAddress != null && !threadAddress.equals(address)) {
         // aka group address
-        storeAttribute(writer, THREAD_ADDRESS, threadAddress);
+        writer.storeAttribute(THREAD_ADDRESS, threadAddress);
       }
-      storeAttribute(writer, TextBasedSmsColumns.DATE, date);
-      storeAttribute(writer, TextBasedSmsColumns.DATE_SENT, dateSent);
-      storeAttribute(writer, TextBasedSmsColumns.TYPE, type);
-      storeAttribute(writer, TextBasedSmsColumns.SUBJECT, subject);
-      storeAttribute(writer, TextBasedSmsColumns.BODY, body);
-      storeAttribute(writer, TextBasedSmsColumns.SERVICE_CENTER, serviceCenter);
-      storeAttribute(writer, TextBasedSmsColumns.READ, read);
-      storeAttribute(writer, TextBasedSmsColumns.STATUS, status);
+      writer.storeAttribute(TextBasedSmsColumns.DATE, date);
+      writer.storeAttribute(TextBasedSmsColumns.DATE_SENT, dateSent);
+      writer.storeAttribute(TextBasedSmsColumns.TYPE, type);
+      writer.storeAttribute(TextBasedSmsColumns.SUBJECT, subject);
+      writer.storeAttribute(TextBasedSmsColumns.BODY, body);
+      writer.storeAttribute(TextBasedSmsColumns.SERVICE_CENTER, serviceCenter);
+      writer.storeAttribute(TextBasedSmsColumns.READ, read);
+      writer.storeAttribute(TextBasedSmsColumns.STATUS, status);
 
-      writer.write(CLOSE_EMPTY_TAG);
-
-      return writer;
+      writer.closeSMS();
     }
   }
 
@@ -250,12 +199,7 @@ public abstract class XmlBackupItem {
     public static final String SIZE         = "_size";         // SMS Backup & Restore, optional
     public static final String DATA         = "data";          // SMS Backup & Restore, optional
 
-    // XML tags
-    public static final String OPEN_TAG_MMS    = " <mms ";
-    public static final String OPEN_TAG_PARTS  = "   <parts>";
-    public static final String OPEN_TAG_PART   = "   <part ";
-    public static final String CLOSE_TAG_MMS   = " </mms> ";
-    public static final String CLOSE_TAG_PARTS = "   </parts>";
+
 
     // character sets
     public static final int UTF_8 = 106;
@@ -379,81 +323,73 @@ public abstract class XmlBackupItem {
       return (transactionId == null) ? null : new String(transactionId, Charsets.UTF_8);
     }
 
-    @NonNull
-    public BufferedWriter storeOn(@NonNull BufferedWriter writer) throws IOException {
-      writer.write(OPEN_TAG_MMS);
+    @Override
+    public void storeOn(@NonNull XmlBackupWriter writer) throws IOException {
+      writer.startMMS();
 
-      storeAttribute(writer, BaseMmsColumns.TEXT_ONLY, 1);              // optional
-      storeAttribute(writer, TextBasedSmsColumns.ADDRESS, address);
+      writer.storeAttribute(BaseMmsColumns.TEXT_ONLY, 1);              // optional
+      writer.storeAttribute(TextBasedSmsColumns.ADDRESS, address);
       if (threadAddress != null && !threadAddress.equals(address)) {
         // aka group address
-        storeAttribute(writer, THREAD_ADDRESS, threadAddress);
+        writer.storeAttribute(THREAD_ADDRESS, threadAddress);
       }
-      storeAttribute(writer, TextBasedSmsColumns.DATE, date);
-      storeAttribute(writer, TextBasedSmsColumns.DATE_SENT, dateSent);
-      storeAttribute(writer, BaseMmsColumns.MESSAGE_BOX, type);
-      storeAttribute(writer, BaseMmsColumns.SUBJECT, subject);
-      storeAttribute(writer, TextBasedSmsColumns.READ, read);
-      storeAttribute(writer, BaseMmsColumns.STATUS, status);
+      writer.storeAttribute(TextBasedSmsColumns.DATE, date);
+      writer.storeAttribute(TextBasedSmsColumns.DATE_SENT, dateSent);
+      writer.storeAttribute(BaseMmsColumns.MESSAGE_BOX, type);
+      writer.storeAttribute(BaseMmsColumns.SUBJECT, subject);
+      writer.storeAttribute(TextBasedSmsColumns.READ, read);
+      writer.storeAttribute(BaseMmsColumns.STATUS, status);
 
-//      storeAttribute(writer, BaseMmsColumns.CONTENT_CLASS, null);
-//      storeAttribute(writer, BaseMmsColumns.SUBJECT_CHARSET, 106);
-//      storeAttribute(writer, BaseMmsColumns.RETRIEVE_STATUS, "128");
-      storeAttribute(writer, BaseMmsColumns.CONTENT_LOCATION, getContentLocation());
-      storeAttribute(writer, BaseMmsColumns.TRANSACTION_ID, getTransactionId());
-//      storeAttribute(writer, BaseMmsColumns.MESSAGE_CLASS, "personal");
-//      storeAttribute(writer, BaseMmsColumns.DELIVERY_TIME, null);
-//      storeAttribute(writer, BaseMmsColumns.READ_STATUS, null);
-//      storeAttribute(writer, BaseMmsColumns.CONTENT_TYPE, "application/vnd.wap.multipart.related");
-//      storeAttribute(writer, BaseMmsColumns.SUBSCRIPTION_ID, 0);
-//      storeAttribute(writer, BaseMmsColumns.RETRIEVE_TEXT_CHARSET, null);
-//      storeAttribute(writer, BaseMmsColumns.DELIVERY_REPORT, 128);
-//      storeAttribute(writer, BaseMmsColumns.MESSAGE_ID, "NOKASDF0000900002");
-//      storeAttribute(writer, BaseMmsColumns.SEEN, 1);
-//      storeAttribute(writer, BaseMmsColumns.MESSAGE_TYPE, 132);
-//      storeAttribute(writer, BaseMmsColumns.MMS_VERSION, 17);
-      storeAttribute(writer, BaseMmsColumns.EXPIRY, expiry);
-//      storeAttribute(writer, BaseMmsColumns.PRIORITY, 129);
-//      storeAttribute(writer, BaseMmsColumns.READ_REPORT, 129);
-//      storeAttribute(writer, BaseMmsColumns.RESPONSE_TEXT, null);
-//      storeAttribute(writer, BaseMmsColumns.REPORT_ALLOWED, null);
-//      storeAttribute(writer, BaseMmsColumns.LOCKED, 0);
-//      storeAttribute(writer, BaseMmsColumns.RETRIEVE_TEXT, null);
-//      storeAttribute(writer, BaseMmsColumns.RESPONSE_STATUS, null);
-      storeAttribute(writer, BaseMmsColumns.MESSAGE_SIZE, messageSize);
-//      storeAttribute(writer, BaseMmsColumns.CREATOR, null);
-//      storeAttribute(writer, READABLE_DATE, "08.03.3588 12:54:30");
-//      storeAttribute(writer, CONTACT_NAME, "Hook");
-
-      writer.write(CLOSE_TAG);
-      writer.newLine();
+//      writer.storeAttribute(BaseMmsColumns.CONTENT_CLASS, null);
+//      writer.storeAttribute(BaseMmsColumns.SUBJECT_CHARSET, 106);
+//      writer.storeAttribute(BaseMmsColumns.RETRIEVE_STATUS, "128");
+      writer.storeAttribute(BaseMmsColumns.CONTENT_LOCATION, getContentLocation());
+      writer.storeAttribute(BaseMmsColumns.TRANSACTION_ID, getTransactionId());
+//      writer.storeAttribute(BaseMmsColumns.MESSAGE_CLASS, "personal");
+//      writer.storeAttribute(BaseMmsColumns.DELIVERY_TIME, null);
+//      writer.storeAttribute(BaseMmsColumns.READ_STATUS, null);
+//      writer.storeAttribute(BaseMmsColumns.CONTENT_TYPE, "application/vnd.wap.multipart.related");
+//      writer.storeAttribute(BaseMmsColumns.SUBSCRIPTION_ID, 0);
+//      writer.storeAttribute(BaseMmsColumns.RETRIEVE_TEXT_CHARSET, null);
+//      writer.storeAttribute(BaseMmsColumns.DELIVERY_REPORT, 128);
+//      writer.storeAttribute(BaseMmsColumns.MESSAGE_ID, "NOKASDF0000900002");
+//      writer.storeAttribute(BaseMmsColumns.SEEN, 1);
+//      writer.storeAttribute(BaseMmsColumns.MESSAGE_TYPE, 132);
+//      writer.storeAttribute(BaseMmsColumns.MMS_VERSION, 17);
+      writer.storeAttribute(BaseMmsColumns.EXPIRY, expiry);
+//      writer.storeAttribute(BaseMmsColumns.PRIORITY, 129);
+//      writer.storeAttribute(BaseMmsColumns.READ_REPORT, 129);
+//      writer.storeAttribute(BaseMmsColumns.RESPONSE_TEXT, null);
+//      writer.storeAttribute(BaseMmsColumns.REPORT_ALLOWED, null);
+//      writer.storeAttribute(BaseMmsColumns.LOCKED, 0);
+//      writer.storeAttribute(BaseMmsColumns.RETRIEVE_TEXT, null);
+//      writer.storeAttribute(BaseMmsColumns.RESPONSE_STATUS, null);
+      writer.storeAttribute(BaseMmsColumns.MESSAGE_SIZE, messageSize);
+//      writer.storeAttribute(BaseMmsColumns.CREATOR, null);
+//      writer.storeAttribute(READABLE_DATE, "08.03.3588 12:54:30");
+//      writer.storeAttribute(CONTACT_NAME, "Hook");
 
       // store message text only
-      writer.write(OPEN_TAG_PARTS);
-      writer.newLine();
-      writer.write(OPEN_TAG_PART);
+      writer.startParts();
+      writer.startPart();
 
-      storeAttribute(writer, Telephony.Mms.Part.SEQ, 0);
-      storeAttribute(writer, Telephony.Mms.Part.CONTENT_TYPE, "text/plain");
-      storeAttribute(writer, Telephony.Mms.Part.NAME, null);
-      storeAttribute(writer, Telephony.Mms.Part.CHARSET, UTF_8);
-      storeAttribute(writer, Telephony.Mms.Part.CONTENT_DISPOSITION, null);
-      storeAttribute(writer, Telephony.Mms.Part.FILENAME, null);
-      storeAttribute(writer, Telephony.Mms.Part.CONTENT_ID, "&lt;text_0&gt;"); // should be int?
-      storeAttribute(writer, Telephony.Mms.Part.CONTENT_LOCATION, "text_0.txt");      // should be int?
-      storeAttribute(writer, Telephony.Mms.Part.CT_START, null);
-      storeAttribute(writer, Telephony.Mms.Part.CT_TYPE, null);
-      storeAttribute(writer, Telephony.Mms.Part.TEXT, body);
-//      storeAttribute(writer, DISPLAY_NAME, null);
-//      storeAttribute(writer, SIZE, null);
+      writer.storeAttribute(Telephony.Mms.Part.SEQ, 0);
+      writer.storeAttribute(Telephony.Mms.Part.CONTENT_TYPE, "text/plain");
+      writer.storeAttribute(Telephony.Mms.Part.NAME, null);
+      writer.storeAttribute(Telephony.Mms.Part.CHARSET, UTF_8);
+      writer.storeAttribute(Telephony.Mms.Part.CONTENT_DISPOSITION, null);
+      writer.storeAttribute(Telephony.Mms.Part.FILENAME, null);
+      writer.storeAttribute(Telephony.Mms.Part.CONTENT_ID, "&lt;text_0&gt;"); // should be int?
+      writer.storeAttribute(Telephony.Mms.Part.CONTENT_LOCATION, "text_0.txt");      // should be int?
+      writer.storeAttribute(Telephony.Mms.Part.CT_START, null);
+      writer.storeAttribute(Telephony.Mms.Part.CT_TYPE, null);
+      writer.storeAttribute(Telephony.Mms.Part.TEXT, body);
+//      writer.storeAttribute(DISPLAY_NAME, null);
+//      writer.storeAttribute(SIZE, null);
 
-      writer.write(CLOSE_EMPTY_TAG);
-      writer.newLine();
-      writer.write(CLOSE_TAG_PARTS);
-      writer.newLine();
-      writer.write(CLOSE_TAG_MMS);
-
-      return writer;
+      writer.closePart();
+      writer.closeParts();
+      writer.closeMMS();
     }
   }
 }
