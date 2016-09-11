@@ -5,6 +5,7 @@ import android.provider.Telephony;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
+import com.google.common.io.Files;
 import org.thoughtcrime.securesms.attachments.Attachment;
 import org.thoughtcrime.securesms.crypto.MasterSecret;
 import org.thoughtcrime.securesms.database.DatabaseFactory;
@@ -19,9 +20,11 @@ import org.thoughtcrime.securesms.recipients.Recipients;
 import org.thoughtcrime.securesms.util.Base64;
 import org.whispersystems.libsignal.logging.Log;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -117,15 +120,20 @@ public class XmlBackupWriter {
 	}
 
 	private void storeAttributeStream(String name, InputStream value) throws IOException {
-		writer.write(name);
-		writer.write(OPEN_ATTRIBUTE);
-		byte[] buffer = new byte[1024];
-		int readCount = value.read(buffer);
-		while(readCount >= 0) {
-      writer.write(Base64.encodeBytes(buffer, 0, readCount));
-			readCount = value.read(buffer);
+		// value -> buffer (because crypto needs buffered reads) -> base64 encode  -> reader -> pipe to writer
+		InputStreamReader encoded = new InputStreamReader(new Base64.InputStream(new BufferedInputStream(value), Base64.ENCODE), "US-ASCII");
+		try {
+			writer.write(name);
+			writer.write(OPEN_ATTRIBUTE);
+			char[] buffer = new char[1024];
+			int len;
+			while ((len = encoded.read(buffer)) != -1) {
+				writer.write(buffer, 0, len);
+			}
+			writer.write(CLOSE_ATTRIBUTE);
+		} finally {
+			encoded.close();
 		}
-		writer.write(CLOSE_ATTRIBUTE);
 	}
 
 
