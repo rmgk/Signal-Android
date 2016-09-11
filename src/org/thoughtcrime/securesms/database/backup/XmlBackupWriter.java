@@ -1,53 +1,94 @@
 package org.thoughtcrime.securesms.database.backup;
 
+import android.content.Context;
+import android.provider.Telephony;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
+import org.thoughtcrime.securesms.attachments.Attachment;
+import org.thoughtcrime.securesms.crypto.MasterSecret;
+import org.thoughtcrime.securesms.database.DatabaseFactory;
+import org.thoughtcrime.securesms.database.MmsSmsColumns;
+import org.thoughtcrime.securesms.database.SmsDatabase;
+import org.thoughtcrime.securesms.database.ThreadDatabase;
+import org.thoughtcrime.securesms.database.model.MediaMmsMessageRecord;
+import org.thoughtcrime.securesms.database.model.MessageRecord;
+import org.thoughtcrime.securesms.mms.PartAuthority;
+import org.thoughtcrime.securesms.recipients.Recipient;
+import org.thoughtcrime.securesms.recipients.Recipients;
+import org.thoughtcrime.securesms.util.Base64;
+import org.whispersystems.libsignal.logging.Log;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class XmlBackupWriter {
 
-	private static final String XML_HEADER      = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\" ?>";
-	private static final String CREATED_BY      = "<!-- File Created By Signal -->";
-	private static final String OPEN_TAG_SMSES  = "<smses count=\"%d\">";
+	private static final String LOG = XmlBackupWriter.class.getSimpleName();
+
+	private static final String XML_HEADER = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\" ?>";
+	private static final String CREATED_BY = "<!-- File Created By Signal -->";
+	private static final String OPEN_TAG_SMSES = "<smses count=\"%d\">";
 	private static final String CLOSE_TAG_SMSES = "</smses>";
 
 	// XML tags
-	public static final String CLOSE_TAG       = ">";
+	public static final String CLOSE_TAG = ">";
 	public static final String CLOSE_EMPTY_TAG = "/>";
-	public static final String OPEN_ATTRIBUTE  = "=\"";
+	public static final String OPEN_ATTRIBUTE = "=\"";
 	public static final String CLOSE_ATTRIBUTE = "\" ";
 
 	// XML tags
-	public static final String OPEN_TAG_SMS    = " <sms ";
+	public static final String OPEN_TAG_SMS = " <sms ";
 
 	// XML tags
-	public static final String OPEN_TAG_MMS    = " <mms ";
-	public static final String OPEN_TAG_PARTS  = "   <parts>";
-	public static final String OPEN_TAG_PART   = "   <part ";
-	public static final String CLOSE_TAG_MMS   = " </mms> ";
+	public static final String OPEN_TAG_MMS = " <mms ";
+	public static final String OPEN_TAG_PARTS = "   <parts>";
+	public static final String OPEN_TAG_PART = "   <part ";
+	public static final String CLOSE_TAG_MMS = " </mms> ";
 	public static final String CLOSE_TAG_PARTS = "   </parts>";
 
+	// common signal attributes
+//  public static final String READABLE_DATE   = "readable_date";  // SMS Backup & Restore, optional
+//  public static final String CONTACT_NAME    = "contact_name";   // SMS Backup & Restore, optional
+	public static final String SIGNAL_GROUP_ADDRESS = "signal_group_address"; // Signal
+	public static final String SIGNAL_TYPE = "signal_type"; // Signal
+
+	// Part attribute names
+	public static final String DISPLAY_NAME = "_display_name"; // SMS Backup & Restore, optional
+	public static final String SIZE = "_size";         // SMS Backup & Restore, optional
+	public static final String DATA = "data";          // SMS Backup & Restore, optional
+
+
+	// character sets
+	public static final int UTF_8 = 106;
 
 
 	// XML escaping
-	public static final Pattern PATTERN        = Pattern.compile("[^\u0020-\uD7FF]");
+	public static final Pattern PATTERN = Pattern.compile("[^\u0020-\uD7FF]");
 
 	private final BufferedWriter writer;
+	private final ThreadDatabase threads;
+	private final Context context;
+	private final MasterSecret masterSecret;
 
-	public XmlBackupWriter(BufferedWriter writer, int count) throws IOException {
+	public XmlBackupWriter(BufferedWriter writer, @NonNull Context context, @NonNull MasterSecret masterSecret) {
 		this.writer = writer;
+		this.context = context;
+		this.masterSecret = masterSecret;
+		this.threads =  DatabaseFactory.getThreadDatabase(context);
+	}
 
-		this.writer.write(XML_HEADER);
-		this.writer.newLine();
-		this.writer.write(CREATED_BY);
-		this.writer.newLine();
-		this.writer.write(String.format(OPEN_TAG_SMSES, count));
-		this.writer.newLine();
+	public void writeHeader(int count) throws IOException {
+		writer.write(XML_HEADER);
+		writer.newLine();
+		writer.write(CREATED_BY);
+		writer.newLine();
+		writer.write(String.format(OPEN_TAG_SMSES, count));
+		writer.newLine();
 	}
 
 	public void close() throws IOException {
@@ -62,11 +103,29 @@ public class XmlBackupWriter {
 		writer.write(CLOSE_ATTRIBUTE);
 	}
 
+	public void storeAttribute(@NonNull String name, boolean value) throws IOException {
+		storeAttribute(name, String.valueOf(value));
+	}
+
+
 	public void storeAttribute(@NonNull String name, int value) throws IOException {
 		storeAttribute(name, String.valueOf(value));
 	}
+
 	public void storeAttribute(@NonNull String name, long value) throws IOException {
 		storeAttribute(name, String.valueOf(value));
+	}
+
+	private void storeAttributeStream(String name, InputStream value) throws IOException {
+		writer.write(name);
+		writer.write(OPEN_ATTRIBUTE);
+		byte[] buffer = new byte[1024];
+		int readCount = value.read(buffer);
+		while(readCount >= 0) {
+      writer.write(Base64.encodeBytes(buffer, 0, readCount));
+			readCount = value.read(buffer);
+		}
+		writer.write(CLOSE_ATTRIBUTE);
 	}
 
 
@@ -130,5 +189,168 @@ public class XmlBackupWriter {
 	public void closeSMS() throws IOException {
 		writer.write(CLOSE_EMPTY_TAG);
 		writer.newLine();
+	}
+
+
+	void addCommonAttributes(MessageRecord record, String groupAddress) throws IOException {
+		//TODO: protocol currently not stored in record (but in database)
+		//storeAttribute(Telephony.TextBasedSmsColumns.PROTOCOL, protocol);
+		storeAttribute(Telephony.TextBasedSmsColumns.ADDRESS, record.getIndividualRecipient().getNumber());
+		if (groupAddress != null) {
+			// aka group address
+			storeAttribute(SIGNAL_GROUP_ADDRESS, groupAddress);
+		}
+		storeAttribute(Telephony.TextBasedSmsColumns.DATE, record.getDateReceived());
+		storeAttribute(Telephony.TextBasedSmsColumns.DATE_SENT, record.getDateSent());
+		storeAttribute(SIGNAL_TYPE, record.getType());
+		//TODO: subject currently not stored in record (but in database)
+		//storeAttribute(Telephony.TextBasedSmsColumns.SUBJECT, null);
+		storeAttribute(Telephony.TextBasedSmsColumns.READ, 1);
+		storeAttribute(Telephony.TextBasedSmsColumns.STATUS, record.isDelivered() ? SmsDatabase.Status.STATUS_COMPLETE : record.getDeliveryStatus());
+
+	}
+
+
+	public void writeRecord(MessageRecord record) throws IOException {
+		if (record.isMmsNotification()) {
+			Log.w(LOG, "ignored mms notification during backup");
+			return;
+		}
+
+		String groupAddress = getGroupAddress(record);
+
+		if (record.isMms()) {
+
+			MediaMmsMessageRecord mmsRecord = (MediaMmsMessageRecord) record;
+
+			List<Attachment> attachmentList = mmsRecord.getSlideDeck().asAttachments();
+
+			startMMS();
+
+			storeAttribute(Telephony.BaseMmsColumns.TEXT_ONLY, attachmentList.isEmpty());              // optional
+
+			addCommonAttributes(record, groupAddress);
+
+			// same as SMS.TYPE
+			storeAttribute(Telephony.BaseMmsColumns.MESSAGE_BOX, MmsSmsColumns.Types.translateToSystemBaseType(record.getType()));
+
+//      storeAttribute(BaseMmsColumns.CONTENT_CLASS, null);
+//      storeAttribute(BaseMmsColumns.SUBJECT_CHARSET, 106);
+//      storeAttribute(BaseMmsColumns.RETRIEVE_STATUS, "128");
+//      storeAttribute(BaseMmsColumns.MESSAGE_CLASS, "personal");
+//      storeAttribute(BaseMmsColumns.DELIVERY_TIME, null);
+//      storeAttribute(BaseMmsColumns.READ_STATUS, null);
+//      storeAttribute(BaseMmsColumns.CONTENT_TYPE, "application/vnd.wap.multipart.related");
+//      storeAttribute(BaseMmsColumns.SUBSCRIPTION_ID, 0);
+//      storeAttribute(BaseMmsColumns.RETRIEVE_TEXT_CHARSET, null);
+//      storeAttribute(BaseMmsColumns.DELIVERY_REPORT, 128);
+//      storeAttribute(BaseMmsColumns.MESSAGE_ID, "NOKASDF0000900002");
+//      storeAttribute(BaseMmsColumns.SEEN, 1);
+//      storeAttribute(BaseMmsColumns.MESSAGE_TYPE, 132);
+//      storeAttribute(BaseMmsColumns.MMS_VERSION, 17);
+//      storeAttribute(BaseMmsColumns.PRIORITY, 129);
+//      storeAttribute(BaseMmsColumns.READ_REPORT, 129);
+//      storeAttribute(BaseMmsColumns.RESPONSE_TEXT, null);
+//      storeAttribute(BaseMmsColumns.REPORT_ALLOWED, null);
+//      storeAttribute(BaseMmsColumns.LOCKED, 0);
+//      storeAttribute(BaseMmsColumns.RETRIEVE_TEXT, null);
+//      storeAttribute(BaseMmsColumns.RESPONSE_STATUS, null);
+//      storeAttribute(BaseMmsColumns.CREATOR, null);
+//      storeAttribute(READABLE_DATE, "08.03.3588 12:54:30");
+//      storeAttribute(CONTACT_NAME, "Hook");
+
+			// only used in notifications
+//			storeAttribute(Telephony.BaseMmsColumns.EXPIRY, expiry);
+//			storeAttribute(Telephony.BaseMmsColumns.CONTENT_LOCATION, getContentLocation());
+//			storeAttribute(Telephony.BaseMmsColumns.TRANSACTION_ID, getTransactionId());
+//			storeAttribute(Telephony.BaseMmsColumns.MESSAGE_SIZE, messageSize);
+
+			startParts();
+			storeBodyAsPart(record);
+			int count = 0;
+			for(Attachment attachment : attachmentList) {
+				storeAttachmentAsPart(attachment, "attachment" + count);
+				count ++;
+			}
+
+			closeParts();
+			closeMMS();
+		}
+		else {
+			openSMS();
+
+			addCommonAttributes(record, groupAddress);
+			// same as MMS.MESSAGE_BOX
+			storeAttribute(Telephony.TextBasedSmsColumns.TYPE, MmsSmsColumns.Types.translateToSystemBaseType(record.getType()));
+			storeAttribute(Telephony.TextBasedSmsColumns.BODY, getBody(record));
+			//TODO: subject currently not stored in record (but in database)
+			//storeAttribute(Telephony.TextBasedSmsColumns.SERVICE_CENTER, null);
+			closeSMS();
+		}
+	}
+
+	private void storeAttachmentAsPart(Attachment attachment, String name) throws IOException {
+		if (attachment.isInProgress()) {
+			Log.w(LOG, "tried to store in progress attachment");
+			return;
+		}
+
+		startPart();
+		// for my example mms, the sequence for all real content elements was 0
+		// and the sequence for the main "smil" file was -1
+		storeAttribute(Telephony.Mms.Part.SEQ, 0);
+		storeAttribute(Telephony.Mms.Part.CONTENT_TYPE, attachment.getContentType());
+		storeAttribute(Telephony.Mms.Part.NAME, name);
+		storeAttribute(Telephony.Mms.Part.CHARSET, null);
+		storeAttribute(Telephony.Mms.Part.CONTENT_DISPOSITION, null);
+		storeAttribute(Telephony.Mms.Part.FILENAME, null);
+		storeAttribute(Telephony.Mms.Part.CONTENT_ID, "<" + name + ">"); // should be int?
+		storeAttribute(Telephony.Mms.Part.CONTENT_LOCATION, name);      // should be int?
+		storeAttribute(Telephony.Mms.Part.CT_START, null);
+		storeAttribute(Telephony.Mms.Part.CT_TYPE, null);
+		storeAttribute(Telephony.Mms.Part.TEXT, null);
+		storeAttributeStream(DATA, PartAuthority.getAttachmentStream(context, masterSecret, attachment.getDataUri()));
+		closePart();
+	}
+
+
+
+	private void storeBodyAsPart(MessageRecord record) throws IOException {
+		// store message text only
+		startPart();
+
+		storeAttribute(Telephony.Mms.Part.SEQ, 0);
+		storeAttribute(Telephony.Mms.Part.CONTENT_TYPE, "text/plain");
+		storeAttribute(Telephony.Mms.Part.NAME, null);
+		storeAttribute(Telephony.Mms.Part.CHARSET, UTF_8);
+		storeAttribute(Telephony.Mms.Part.CONTENT_DISPOSITION, null);
+		storeAttribute(Telephony.Mms.Part.FILENAME, null);
+		storeAttribute(Telephony.Mms.Part.CONTENT_ID, "<text_0>"); // should be int?
+		storeAttribute(Telephony.Mms.Part.CONTENT_LOCATION, "text_0.txt");      // should be int?
+		storeAttribute(Telephony.Mms.Part.CT_START, null);
+		storeAttribute(Telephony.Mms.Part.CT_TYPE, null);
+		storeAttribute(Telephony.Mms.Part.TEXT, getBody(record));
+//      storeAttribute(DISPLAY_NAME, null);
+//      storeAttribute(SIZE, null);
+
+		closePart();
+	}
+
+	private String getBody(MessageRecord record) {
+		String displayedMessage = record.getDisplayBody().toString();
+		// display body has a maximum display length. want to store the full message in body.
+		// no other obvious method found to test whether a message is "not special" (e.g. can just use the body)
+		return (displayedMessage.length() == MessageRecord.MAX_DISPLAY_LENGTH) ? record.getBody().getBody() : displayedMessage;
+	}
+
+
+	@Nullable
+	private String getGroupAddress(MessageRecord record) {
+		Recipients threadRecipients = threads.getRecipientsForThreadId(record.getThreadId());
+		if (threadRecipients == null || threadRecipients.isEmpty()) {
+			return null;
+		}
+		Recipient rec = threadRecipients.getPrimaryRecipient();
+		return rec.isGroupRecipient() ? rec.getNumber() : null;
 	}
 }

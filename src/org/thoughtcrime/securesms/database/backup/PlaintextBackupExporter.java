@@ -7,6 +7,7 @@ import android.support.annotation.Nullable;
 
 import org.thoughtcrime.securesms.crypto.MasterSecret;
 import org.thoughtcrime.securesms.database.DatabaseFactory;
+import org.thoughtcrime.securesms.database.EncryptingSmsDatabase;
 import org.thoughtcrime.securesms.database.MmsDatabase;
 import org.thoughtcrime.securesms.database.NoExternalStorageException;
 import org.thoughtcrime.securesms.database.SmsDatabase;
@@ -44,68 +45,55 @@ public class PlaintextBackupExporter {
     int smsCount = DatabaseFactory.getSmsDatabase(context).getMessageCount();
     int mmsCount = DatabaseFactory.getMmsDatabase(context).getMessageCount();
     BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(getPlaintextExportFile().getAbsolutePath(), false));
-    XmlBackupWriter writer = new XmlBackupWriter(bufferedWriter, smsCount + mmsCount);
-    ThreadDatabase threads  = DatabaseFactory.getThreadDatabase(context);
+    XmlBackupWriter writer = new XmlBackupWriter(bufferedWriter, context, masterSecret);
+    writer.writeHeader(smsCount + mmsCount);
 
-    exportSms(context, masterSecret, writer, threads);
-    exportMms(context, masterSecret, writer, threads);
+    exportSms(context, masterSecret, writer);
+    exportMms(context, masterSecret, writer);
 
     writer.close();
   }
 
-  private static void exportMms(Context context, MasterSecret masterSecret, XmlBackupWriter writer, ThreadDatabase threads) throws IOException {
+  private static void exportMms(Context context, MasterSecret masterSecret, XmlBackupWriter writer) throws IOException {
     final int ROW_LIMIT = 500;
     int skip = 0;
 
+    MmsDatabase mmsDatabase = DatabaseFactory.getMmsDatabase(context);
     MmsDatabase.Reader mmsReader = null;
     do {
       if (mmsReader != null)
         mmsReader.close();
 
-      mmsReader = DatabaseFactory.getMmsDatabase(context).getMessages(masterSecret, skip, ROW_LIMIT);
+      mmsReader = mmsDatabase.getMessages(masterSecret, skip, ROW_LIMIT);
 
       MessageRecord mmsRecord;
       while ((mmsRecord = mmsReader.getNext()) != null) {
-        String groupAddress = getGroupAddress(mmsRecord, threads);
-        if (mmsRecord instanceof MediaMmsMessageRecord) {
-          new XmlBackupItem.Mms((MediaMmsMessageRecord) mmsRecord, groupAddress).storeOn(writer);
-        } else if (mmsRecord instanceof NotificationMmsMessageRecord) {
-          new XmlBackupItem.Mms((NotificationMmsMessageRecord) mmsRecord, groupAddress).storeOn(writer);
-        }
+        writer.writeRecord(mmsRecord);
       }
 
       skip += ROW_LIMIT;
     } while (mmsReader.getCount() > 0);
   }
 
-  private static void exportSms(Context context, MasterSecret masterSecret, XmlBackupWriter writer, ThreadDatabase threads) throws IOException {
+  private static void exportSms(Context context, MasterSecret masterSecret, XmlBackupWriter writer) throws IOException {
     final int ROW_LIMIT = 500;
     int skip = 0;
 
+    EncryptingSmsDatabase smsDatabase = DatabaseFactory.getEncryptingSmsDatabase(context);
     SmsDatabase.Reader reader = null;
-    do {
-      if (reader != null)
-        reader.close();
 
-      reader = DatabaseFactory.getEncryptingSmsDatabase(context).getMessages(masterSecret, skip, ROW_LIMIT);
+    do {
+      if (reader != null) reader.close();
+
+      reader = smsDatabase.getMessages(masterSecret, skip, ROW_LIMIT);
 
       SmsMessageRecord record;
       while ((record = reader.getNext()) != null) {
-        String groupAddress = getGroupAddress(record, threads);
-        new XmlBackupItem.Sms(record, groupAddress).storeOn(writer);
+        writer.writeRecord(record);
       }
 
       skip += ROW_LIMIT;
     } while (reader.getCount() > 0);
   }
 
-  @Nullable
-  private static String getGroupAddress(MessageRecord record, ThreadDatabase threads) {
-    Recipients threadRecipients = threads.getRecipientsForThreadId(record.getThreadId());
-    if (threadRecipients == null || threadRecipients.isEmpty()) {
-      return null;
-    }
-    Recipient rec = threadRecipients.getPrimaryRecipient();
-    return rec.isGroupRecipient() ? rec.getNumber() : null;
-  }
 }

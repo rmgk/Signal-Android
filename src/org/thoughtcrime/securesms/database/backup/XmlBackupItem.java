@@ -7,24 +7,15 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
 import com.google.common.base.Charsets;
-import org.thoughtcrime.securesms.database.MmsSmsColumns;
-import org.thoughtcrime.securesms.database.SmsDatabase;
 import org.thoughtcrime.securesms.database.model.MediaMmsMessageRecord;
-import org.thoughtcrime.securesms.database.model.MessageRecord;
 import org.thoughtcrime.securesms.database.model.NotificationMmsMessageRecord;
 import org.thoughtcrime.securesms.database.model.SmsMessageRecord;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.IOException;
-import java.io.BufferedWriter;
 
 public abstract class XmlBackupItem {
-  // common signal attributes
-//  public static final String READABLE_DATE   = "readable_date";  // SMS Backup & Restore, optional
-//  public static final String CONTACT_NAME    = "contact_name";   // SMS Backup & Restore, optional
-  public static final String THREAD_ADDRESS  = "thread_address"; // Signal
-
 
 
 
@@ -39,18 +30,6 @@ public abstract class XmlBackupItem {
   protected int read;
   protected int status;
 
-  public XmlBackupItem(@NonNull MessageRecord record, @Nullable String threadAddress) {
-    this.address = record.getIndividualRecipient().getNumber();
-    this.threadAddress = threadAddress;
-    this.date = record.getDateReceived();
-    this.dateSent = record.getDateSent();
-    this.type = MmsSmsColumns.Types.translateToSystemBaseType(record.getType());
-    this.subject = null;
-    this.body = record.getDisplayBody().toString();
-    this.read = 1;
-    this.status = record.isDelivered() ? SmsDatabase.Status.STATUS_COMPLETE : record.getDeliveryStatus();
-  }
-
   public XmlBackupItem(@NonNull XmlPullParser parser) {
     for (int i = 0, count = parser.getAttributeCount(); i < count; i++) {
       readAttribute(parser, i);
@@ -62,7 +41,7 @@ public abstract class XmlBackupItem {
       case TextBasedSmsColumns.ADDRESS:
         address = parser.getAttributeValue(i);
         break;
-      case THREAD_ADDRESS:
+      case XmlBackupWriter.SIGNAL_GROUP_ADDRESS:
         threadAddress = parser.getAttributeValue(i);
         break;
       case TextBasedSmsColumns.DATE:
@@ -113,8 +92,6 @@ public abstract class XmlBackupItem {
     return status;
   }
 
-  public abstract void storeOn(@NonNull XmlBackupWriter writer) throws IOException;
-
   public static class Sms extends XmlBackupItem {
     // SMS attribute names
     public static final String TOA = "toa";       // SMS Backup & Restore, optional
@@ -124,10 +101,6 @@ public abstract class XmlBackupItem {
     // SMS attributes
     protected int protocol;
     protected String serviceCenter;
-
-    public Sms(@NonNull SmsMessageRecord record, @Nullable String threadAddress) {
-      super(record, threadAddress);
-    }
 
     public Sms(@NonNull XmlPullParser parser) {
       super(parser);
@@ -167,42 +140,16 @@ public abstract class XmlBackupItem {
       return serviceCenter;
     }
 
-    @Override
-    public void storeOn(@NonNull XmlBackupWriter writer) throws IOException {
-      writer.openSMS();
-
-      writer.storeAttribute(TextBasedSmsColumns.PROTOCOL, protocol);
-      writer.storeAttribute(TextBasedSmsColumns.ADDRESS, address);
-      if (threadAddress != null && !threadAddress.equals(address)) {
-        // aka group address
-        writer.storeAttribute(THREAD_ADDRESS, threadAddress);
-      }
-      writer.storeAttribute(TextBasedSmsColumns.DATE, date);
-      writer.storeAttribute(TextBasedSmsColumns.DATE_SENT, dateSent);
-      writer.storeAttribute(TextBasedSmsColumns.TYPE, type);
-      writer.storeAttribute(TextBasedSmsColumns.SUBJECT, subject);
-      writer.storeAttribute(TextBasedSmsColumns.BODY, body);
-      writer.storeAttribute(TextBasedSmsColumns.SERVICE_CENTER, serviceCenter);
-      writer.storeAttribute(TextBasedSmsColumns.READ, read);
-      writer.storeAttribute(TextBasedSmsColumns.STATUS, status);
-
-      writer.closeSMS();
-    }
   }
 
 
 
   public static class Mms extends XmlBackupItem {
 
-    // Part attribute names
-    public static final String DISPLAY_NAME = "_display_name"; // SMS Backup & Restore, optional
-    public static final String SIZE         = "_size";         // SMS Backup & Restore, optional
-    public static final String DATA         = "data";          // SMS Backup & Restore, optional
 
 
 
-    // character sets
-    public static final int UTF_8 = 106;
+
 
     // MMS attributes
     private byte[] contentLocation;
@@ -212,22 +159,6 @@ public abstract class XmlBackupItem {
     private int subscriptionId   = -1;
     private byte[] transactionId = null;
 
-
-    public Mms(@NonNull MediaMmsMessageRecord record, @Nullable String threadAddress) {
-      super(record, threadAddress);
-      this.partCount = record.getPartCount();
-//      this.slideDeck = record.getSlideDeck();
-    }
-
-    public Mms(@NonNull NotificationMmsMessageRecord record, @Nullable String threadAddress) {
-      super(record, threadAddress);
-      this.contentLocation = record.getContentLocation();
-      this.messageSize     = record.getMessageSize();
-      this.expiry          = record.getExpiration();
-//      this.status          = record.getStatus(); TODO: check status type of MMS
-      this.subscriptionId = record.getSubscriptionId();
-      this.transactionId   = record.getTransactionId();
-    }
 
     public Mms(@NonNull XmlPullParser parser) throws IOException, XmlPullParserException {
       super(parser);
@@ -321,75 +252,6 @@ public abstract class XmlBackupItem {
     @Nullable
     public String getTransactionId() {
       return (transactionId == null) ? null : new String(transactionId, Charsets.UTF_8);
-    }
-
-    @Override
-    public void storeOn(@NonNull XmlBackupWriter writer) throws IOException {
-      writer.startMMS();
-
-      writer.storeAttribute(BaseMmsColumns.TEXT_ONLY, 1);              // optional
-      writer.storeAttribute(TextBasedSmsColumns.ADDRESS, address);
-      if (threadAddress != null && !threadAddress.equals(address)) {
-        // aka group address
-        writer.storeAttribute(THREAD_ADDRESS, threadAddress);
-      }
-      writer.storeAttribute(TextBasedSmsColumns.DATE, date);
-      writer.storeAttribute(TextBasedSmsColumns.DATE_SENT, dateSent);
-      writer.storeAttribute(BaseMmsColumns.MESSAGE_BOX, type);
-      writer.storeAttribute(BaseMmsColumns.SUBJECT, subject);
-      writer.storeAttribute(TextBasedSmsColumns.READ, read);
-      writer.storeAttribute(BaseMmsColumns.STATUS, status);
-
-//      writer.storeAttribute(BaseMmsColumns.CONTENT_CLASS, null);
-//      writer.storeAttribute(BaseMmsColumns.SUBJECT_CHARSET, 106);
-//      writer.storeAttribute(BaseMmsColumns.RETRIEVE_STATUS, "128");
-      writer.storeAttribute(BaseMmsColumns.CONTENT_LOCATION, getContentLocation());
-      writer.storeAttribute(BaseMmsColumns.TRANSACTION_ID, getTransactionId());
-//      writer.storeAttribute(BaseMmsColumns.MESSAGE_CLASS, "personal");
-//      writer.storeAttribute(BaseMmsColumns.DELIVERY_TIME, null);
-//      writer.storeAttribute(BaseMmsColumns.READ_STATUS, null);
-//      writer.storeAttribute(BaseMmsColumns.CONTENT_TYPE, "application/vnd.wap.multipart.related");
-//      writer.storeAttribute(BaseMmsColumns.SUBSCRIPTION_ID, 0);
-//      writer.storeAttribute(BaseMmsColumns.RETRIEVE_TEXT_CHARSET, null);
-//      writer.storeAttribute(BaseMmsColumns.DELIVERY_REPORT, 128);
-//      writer.storeAttribute(BaseMmsColumns.MESSAGE_ID, "NOKASDF0000900002");
-//      writer.storeAttribute(BaseMmsColumns.SEEN, 1);
-//      writer.storeAttribute(BaseMmsColumns.MESSAGE_TYPE, 132);
-//      writer.storeAttribute(BaseMmsColumns.MMS_VERSION, 17);
-      writer.storeAttribute(BaseMmsColumns.EXPIRY, expiry);
-//      writer.storeAttribute(BaseMmsColumns.PRIORITY, 129);
-//      writer.storeAttribute(BaseMmsColumns.READ_REPORT, 129);
-//      writer.storeAttribute(BaseMmsColumns.RESPONSE_TEXT, null);
-//      writer.storeAttribute(BaseMmsColumns.REPORT_ALLOWED, null);
-//      writer.storeAttribute(BaseMmsColumns.LOCKED, 0);
-//      writer.storeAttribute(BaseMmsColumns.RETRIEVE_TEXT, null);
-//      writer.storeAttribute(BaseMmsColumns.RESPONSE_STATUS, null);
-      writer.storeAttribute(BaseMmsColumns.MESSAGE_SIZE, messageSize);
-//      writer.storeAttribute(BaseMmsColumns.CREATOR, null);
-//      writer.storeAttribute(READABLE_DATE, "08.03.3588 12:54:30");
-//      writer.storeAttribute(CONTACT_NAME, "Hook");
-
-      // store message text only
-      writer.startParts();
-      writer.startPart();
-
-      writer.storeAttribute(Telephony.Mms.Part.SEQ, 0);
-      writer.storeAttribute(Telephony.Mms.Part.CONTENT_TYPE, "text/plain");
-      writer.storeAttribute(Telephony.Mms.Part.NAME, null);
-      writer.storeAttribute(Telephony.Mms.Part.CHARSET, UTF_8);
-      writer.storeAttribute(Telephony.Mms.Part.CONTENT_DISPOSITION, null);
-      writer.storeAttribute(Telephony.Mms.Part.FILENAME, null);
-      writer.storeAttribute(Telephony.Mms.Part.CONTENT_ID, "&lt;text_0&gt;"); // should be int?
-      writer.storeAttribute(Telephony.Mms.Part.CONTENT_LOCATION, "text_0.txt");      // should be int?
-      writer.storeAttribute(Telephony.Mms.Part.CT_START, null);
-      writer.storeAttribute(Telephony.Mms.Part.CT_TYPE, null);
-      writer.storeAttribute(Telephony.Mms.Part.TEXT, body);
-//      writer.storeAttribute(DISPLAY_NAME, null);
-//      writer.storeAttribute(SIZE, null);
-
-      writer.closePart();
-      writer.closeParts();
-      writer.closeMMS();
     }
   }
 }
