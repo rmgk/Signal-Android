@@ -52,13 +52,13 @@ public class XmlBackupWriter {
 
 	// XML tags
 	public static final String OPEN_TAG_MMS = " <mms ";
-	public static final String CLOSE_TAG_MMS = " </mms> ";
+	public static final String CLOSE_TAG_MMS = " </mms>";
 	public static final String OPEN_TAG_PARTS = "   <parts>";
 	public static final String CLOSE_TAG_PARTS = "   </parts>";
 	public static final String OPEN_TAG_PART = "    <part ";
 	public static final String OPEN_TAG_ADDRESS = "    <addr ";
 	public static final String OPEN_TAG_ADDRESSES = "   <addrs>";
-	public static final String CLOSE_TAG_ADDRESSES = "   </addr>";
+	public static final String CLOSE_TAG_ADDRESSES = "   </addrs>";
 
 	// common signal attributes
 //  public static final String READABLE_DATE   = "readable_date";  // SMS Backup & Restore, optional
@@ -283,6 +283,8 @@ public class XmlBackupWriter {
 
 			}
 			else {
+				// note that the way addresses are generated means that all messages in a conversation will have the same
+				// set of participants, even if the group changed during its lifetime
 				storeAttribute(SIGNAL_GROUP_ADDRESS, groupAddress);
 				Recipients otherParties = DatabaseFactory.getGroupDatabase(context).getGroupMembers(GroupUtil.getDecodedId(groupAddress), false);
 				storeAttribute(Telephony.TextBasedSmsColumns.ADDRESS, TextUtils.join("~", otherParties.toNumberStringArray(false)));
