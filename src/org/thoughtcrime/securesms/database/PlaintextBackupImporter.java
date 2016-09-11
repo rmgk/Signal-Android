@@ -22,10 +22,12 @@ import java.util.Set;
 
 public class PlaintextBackupImporter {
 
+  public static final String TAG = PlaintextBackupImporter.class.getSimpleName();
+
   public static void importPlaintextFromSd(Context context, MasterSecret masterSecret)
       throws NoExternalStorageException, IOException
   {
-    Log.w("PlaintextBackupImporter", "importPlaintext()");
+    Log.w(TAG, "importPlaintext()");
     SmsDatabase    smsDatabase    = DatabaseFactory.getSmsDatabase(context);
     SQLiteDatabase smsTransaction = smsDatabase.beginTransaction();
     MmsDatabase    mmsDatabase    = DatabaseFactory.getMmsDatabase(context);
@@ -39,11 +41,14 @@ public class PlaintextBackupImporter {
       XmlBackupItem msg;
 
       while ((msg = backup.getNext()) != null) {
-        if (msg.getAddress() == null || msg.getAddress().equals("null"))
+        if (msg.getAddress() == null || msg.getAddress().equals("null")) {
+          Log.w(TAG, "did not import message with null address");
           continue;
-        if (!isAppropriateTypeForImport(msg.getType()))
+        }
+        if (!isAppropriateTypeForImport(msg.getType())) {
+          Log.w(TAG, "did not import message with unhandled type: " + msg.getType());
           continue; // TODO: check whether this is sound for MMS as well
-
+        }
         final String recipientAddress = (msg.getAddress() == null) ? msg.getAddress() : msg.getThreadAddress();
         final Recipients recipients = RecipientFactory.getRecipientsFromString(context, recipientAddress, false);
         final long threadId = threads.getThreadIdFor(recipients);
@@ -65,9 +70,9 @@ public class PlaintextBackupImporter {
         threads.update(threadId, true);
       }
 
-      Log.w("PlaintextBackupImporter", "Exited loop");
+      Log.w(TAG, "Exited loop");
     } catch (XmlPullParserException e) {
-      Log.w("PlaintextBackupImporter", e);
+      Log.w(TAG, e);
       throw new IOException("XML Parsing error!");
     } finally {
       smsDatabase.endTransaction(smsTransaction);
@@ -75,7 +80,12 @@ public class PlaintextBackupImporter {
     }
   }
 
-<<<<<<< HEAD
+
+  private static void verifyExternalStorageForPlaintextImport() throws NoExternalStorageException {
+    if (!Environment.getExternalStorageDirectory().canRead() || !getPlaintextExportFile().exists())
+      throw new NoExternalStorageException();
+  }
+
   private static File getPlaintextExportFile() throws NoExternalStorageException {
     File backup    = PlaintextBackupExporter.getPlaintextExportFile();
     File oldBackup = new File(Environment.getExternalStorageDirectory(), "TextSecurePlaintextBackup.xml");
@@ -83,8 +93,6 @@ public class PlaintextBackupImporter {
     return !backup.exists() && oldBackup.exists() ? oldBackup : backup;
   }
 
-  private static void addEncryptedStringToStatement(MasterCipher masterCipher, SQLiteStatement statement, int index, String value) {
-=======
   private static void addMsgToStatement(SQLiteStatement statement, XmlBackupItem.Sms sms, long threadId, MasterCipher masterCipher) {
     addStringToStatement(statement, 1, sms.getAddress());
     addNullToStatement(statement, 2);
@@ -141,8 +149,7 @@ public class PlaintextBackupImporter {
     addLongToStatement(statement, 37, mms.getSubscriptionId());              // SUBSCRIPTION_ID       DEFAULT -1
   }
 
-  private static void addEncryptedStingToStatement(MasterCipher masterCipher, SQLiteStatement statement, int index, String value) {
->>>>>>> Import to MMS database, incomplete
+  private static void addEncryptedStringToStatement(MasterCipher masterCipher, SQLiteStatement statement, int index, String value) {
     if (value == null || value.equals("null")) {
       statement.bindNull(index);
     } else {
