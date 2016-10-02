@@ -4,6 +4,7 @@ import android.provider.Telephony;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import com.google.common.base.Charsets;
+import org.whispersystems.libsignal.logging.Log;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 import ws.com.google.android.mms.pdu.PduHeaders;
@@ -25,11 +26,12 @@ public class MmsBackupItem extends BackupItem {
 
   public MmsBackupItem(@NonNull XmlPullParser parser) throws IOException, XmlPullParserException {
     super(parser);
-    while (parser.next() != XmlPullParser.END_TAG) {
+    while ((parser.next() != XmlPullParser.END_TAG) || !parser.getName().equals("mms")) {
       if (parser.getEventType() != XmlPullParser.START_TAG) {
         continue;
       }
       if (parser.getName().equalsIgnoreCase("part")) {
+        Log.w("MMS", "processing part " + parser.getLineNumber());
         if (body == null) {
           // read first text part only
           readTextOnlyPart(parser);
@@ -67,26 +69,11 @@ public class MmsBackupItem extends BackupItem {
   }
 
   protected void readTextOnlyPart(@NonNull XmlPullParser parser) {
-    String mime = null;
-    String text = null;
-    for (int i=0, count=parser.getAttributeCount(); i<count; i++) {
-      switch (parser.getAttributeName(i)) {
-        case Telephony.Mms.Part.CONTENT_TYPE:
-          mime = parser.getAttributeValue(i);
-          break;
-        case Telephony.Mms.Part.TEXT:
-          text = parser.getAttributeValue(i);
-          break;
-        default:
-          // ignore other attributes
-      }
-      if (mime != null && text != null) {
-        if (mime.equals("text/plain")) {
-          // TODO deal with encoding: CHSET
-          body = text;
-        }
-        break;
-      }
+    String mime = parser.getAttributeValue(null, Telephony.Mms.Part.CONTENT_TYPE);
+    String text = parser.getAttributeValue(null, Telephony.Mms.Part.TEXT);
+    if ((mime != null) && (text != null) && mime.equals("text/plain")) {
+      Log.w("DEBUG", "body is: " + text);
+      body = text;
     }
   }
 
