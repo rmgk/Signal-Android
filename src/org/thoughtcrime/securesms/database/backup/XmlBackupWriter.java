@@ -9,11 +9,13 @@ import org.thoughtcrime.securesms.attachments.Attachment;
 import org.thoughtcrime.securesms.crypto.MasterSecret;
 import org.thoughtcrime.securesms.database.DatabaseFactory;
 import org.thoughtcrime.securesms.database.GroupDatabase;
+import org.thoughtcrime.securesms.database.MmsDatabase;
 import org.thoughtcrime.securesms.database.MmsSmsColumns;
 import org.thoughtcrime.securesms.database.SmsDatabase;
 import org.thoughtcrime.securesms.database.ThreadDatabase;
 import org.thoughtcrime.securesms.database.model.MediaMmsMessageRecord;
 import org.thoughtcrime.securesms.database.model.MessageRecord;
+import org.thoughtcrime.securesms.database.model.SmsMessageRecord;
 import org.thoughtcrime.securesms.mms.PartAuthority;
 import org.thoughtcrime.securesms.recipients.Recipient;
 import org.thoughtcrime.securesms.recipients.Recipients;
@@ -242,8 +244,6 @@ public class XmlBackupWriter {
     //TODO: subject currently not stored in record (but in database)
     //storeAttribute(Telephony.TextBasedSmsColumns.SUBJECT, null);
     storeAttribute(Telephony.TextBasedSmsColumns.READ, 1);
-    storeAttribute(Telephony.TextBasedSmsColumns.STATUS, record.isDelivered() ? SmsDatabase.Status.STATUS_COMPLETE : record.getDeliveryStatus());
-
   }
 
 
@@ -321,6 +321,7 @@ public class XmlBackupWriter {
       // individual recipient of simple sms is always the other party
       storeAttribute(Telephony.TextBasedSmsColumns.ADDRESS, record.getIndividualRecipient().getNumber());
       addCommonAttributes(record);
+      storeAttribute(Telephony.TextBasedSmsColumns.STATUS, record.isDelivered() ? SmsDatabase.Status.STATUS_COMPLETE : record.getDeliveryStatus());
       // same as MMS.MESSAGE_BOX
       storeAttribute(Telephony.TextBasedSmsColumns.TYPE, MmsSmsColumns.Types.translateToSystemBaseType(record.getType()));
       storeAttribute(Telephony.TextBasedSmsColumns.BODY, getBody(record));
