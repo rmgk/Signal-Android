@@ -91,10 +91,14 @@ public class PlaintextBackupImporter {
 
 
   private static long getThreadId(Context context, ThreadDatabase threads, BackupItem msg) {
-    final String recipientAddress = (msg.getSignalGroupAddress() == null) ? msg.getAddress() :
-            msg.getSignalGroupAddress().replace('~', ','); // '~' is the address separator used by SMSB&R
+    final String recipientAddress = (msg.getSignalGroupAddress() == null) ?
+            msg.getAddress().replace('~', ',') :  // '~' is the address separator used by SMSB&R
+            msg.getSignalGroupAddress();
+    Log.w(TAG, "getting threads id for " + recipientAddress);
     final Recipients recipients = RecipientFactory.getRecipientsFromString(context, recipientAddress, false);
-    return threads.getThreadIdFor(recipients);
+    long id = threads.getThreadIdFor(recipients);
+    Log.w(TAG, "id is " + id);
+    return id;
   }
 
   private static void importSms(SQLiteStatement statement, SmsBackupItem sms, long threadId, MasterCipher masterCipher) {
