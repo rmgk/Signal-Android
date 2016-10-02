@@ -22,6 +22,7 @@ import org.thoughtcrime.securesms.database.backup.BackupItem;
 import org.thoughtcrime.securesms.recipients.RecipientFactory;
 import org.thoughtcrime.securesms.recipients.Recipients;
 import org.thoughtcrime.securesms.util.Base64;
+import org.thoughtcrime.securesms.util.GroupUtil;
 import org.thoughtcrime.securesms.util.MediaUtil;
 import org.xmlpull.v1.XmlPullParserException;
 import ws.com.google.android.mms.MmsException;
@@ -31,7 +32,9 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -48,6 +51,7 @@ public class PlaintextBackupImporter {
     MmsDatabase    mmsDatabase    = DatabaseFactory.getMmsDatabase(context);
     AttachmentDatabase attachmentDatabase   = DatabaseFactory.getAttachmentDatabase(context);
     MmsAddressDatabase addressDatabase = DatabaseFactory.getMmsAddressDatabase(context);
+    GroupDatabase groupDatabase = DatabaseFactory.getGroupDatabase(context);
 
     try {
       ThreadDatabase threads         = DatabaseFactory.getThreadDatabase(context);
@@ -77,6 +81,20 @@ public class PlaintextBackupImporter {
           smsStatement.execute();
         } else {
           MmsBackupItem mms = (MmsBackupItem) msg;
+          if (mms.getSignalGroupAddress() != null) {
+            byte[] groupID = GroupUtil.getDecodedId(mms.getSignalGroupAddress());
+            if (groupDatabase.getGroup(groupID) == null) {
+              Log.w(TAG, "creating group " + mms.getSignalGroupAddress());
+              List<String> members = new ArrayList<>(10);
+              MmsAddresses addr = mms.getAddresses();
+              members.add(addr.getFrom());
+              members.addAll(addr.getTo());
+              members.addAll(addr.getCc());
+              members.addAll(addr.getBcc());
+              groupDatabase.create(groupID, "imported group", members, null, null);
+            }
+          }
+
           addMmsToStatement(mmsStatement, mms, threadId, masterCipher);
           long messageId = mmsStatement.executeInsert();
 
@@ -199,7 +217,7 @@ public class PlaintextBackupImporter {
             String.valueOf(mms.getPartCount()),
             mms.attributes.get(Telephony.BaseMmsColumns.CONTENT_TYPE),
             mms.attributes.get(Telephony.BaseMmsColumns.CONTENT_LOCATION),
-            mms.attributes.get(Telephony.Sms.ADDRESS),
+            mms.getAddresses().getFrom(),
             mms.attributes.get(MmsDatabase.ADDRESS_DEVICE_ID),
             mms.attributes.get(Telephony.BaseMmsColumns.EXPIRY),
             mms.attributes.get(Telephony.BaseMmsColumns.MESSAGE_CLASS),
