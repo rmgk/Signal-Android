@@ -8,6 +8,7 @@ import android.text.TextUtils;
 import org.thoughtcrime.securesms.attachments.Attachment;
 import org.thoughtcrime.securesms.crypto.MasterSecret;
 import org.thoughtcrime.securesms.database.DatabaseFactory;
+import org.thoughtcrime.securesms.database.GroupDatabase;
 import org.thoughtcrime.securesms.database.MmsSmsColumns;
 import org.thoughtcrime.securesms.database.SmsDatabase;
 import org.thoughtcrime.securesms.database.ThreadDatabase;
@@ -255,6 +256,7 @@ public class XmlBackupWriter {
     String groupAddress = getGroupAddress(record);
 
     if (record.isMms() || (groupAddress != null)) {
+      // media messages and messages to groups are stored as MMS
 
       List<Attachment> attachmentList = new ArrayList<>(0);
       if (record.isMms()) {
@@ -266,37 +268,45 @@ public class XmlBackupWriter {
 
       storeAttribute(Telephony.BaseMmsColumns.TEXT_ONLY, attachmentList.isEmpty());              // optional
 
+      String localNumber = TextSecurePreferences.getLocalNumber(context);
+
       // involved addresses differ for groups and direct messages
       // for non groups the single other party is found in the thread
       // for groups the involved numbers are stored in the group database
       if (groupAddress == null) {
+        // this is a message to a single recipient, but with an attachment
+
         Recipient otherParty = threads.getRecipientsForThreadId(record.getThreadId()).getPrimaryRecipient();
         storeAttribute(Telephony.TextBasedSmsColumns.ADDRESS, otherParty.getNumber());
 
         addCommonAttributes(record);
         addMMSAttributes(record, attachmentList);
-        startAddresses();
 
-        String localNumber = TextSecurePreferences.getLocalNumber(context);
+        startAddresses();
         storeRecipient(otherParty.getNumber(), !record.isOutgoing());
         storeRecipient(localNumber, record.isOutgoing());
 
       }
       else {
+        // this is a message to multiple recipients, it may or may not have attachments
+
         // note that the way addresses are generated means that all messages in a conversation will have the same
         // set of participants, even if the group changed during its lifetime
+        GroupDatabase groupDatabase = DatabaseFactory.getGroupDatabase(context);
+        byte[] decodedGroupAddress = GroupUtil.getDecodedId(groupAddress);
+
         storeAttribute(SIGNAL_GROUP_ADDRESS, groupAddress);
-        Recipients otherParties = DatabaseFactory.getGroupDatabase(context).getGroupMembers(GroupUtil.getDecodedId(groupAddress), false);
+
+        Recipients otherParties = groupDatabase.getGroupMembers(decodedGroupAddress, /*includeSelf = */ false);
         storeAttribute(Telephony.TextBasedSmsColumns.ADDRESS, TextUtils.join("~", otherParties.toNumberStringArray(false)));
 
         addCommonAttributes(record);
         addMMSAttributes(record, attachmentList);
 
         startAddresses();
-
-        String localNumber = TextSecurePreferences.getLocalNumber(context);
         String sender = (record.isOutgoing()) ? localNumber : record.getIndividualRecipient().getNumber();
-        for (Recipient recipient : DatabaseFactory.getGroupDatabase(context).getGroupMembers(GroupUtil.getDecodedId(groupAddress), true)) {
+        Recipients allGroupMembers = groupDatabase.getGroupMembers(decodedGroupAddress, /*includeSelf = */ true);
+        for (Recipient recipient : allGroupMembers) {
           String number = recipient.getNumber();
           storeRecipient(number, sender.equals(number));
         }
@@ -306,6 +316,7 @@ public class XmlBackupWriter {
       closeMMS();
     }
     else {
+      // text only messages to single recipient are stored as SMS
       openSMS();
       // individual recipient of simple sms is always the other party
       storeAttribute(Telephony.TextBasedSmsColumns.ADDRESS, record.getIndividualRecipient().getNumber());
