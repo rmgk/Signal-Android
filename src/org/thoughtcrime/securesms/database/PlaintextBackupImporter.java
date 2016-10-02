@@ -49,7 +49,7 @@ public class PlaintextBackupImporter {
           Log.w(TAG, "did not import message with unhandled type: " + msg.getType());
           continue; // TODO: check whether this is sound for MMS as well
         }
-        final String recipientAddress = (msg.getAddress() == null) ? msg.getAddress() : msg.getThreadAddress();
+        final String recipientAddress = (msg.getThreadAddress() == null) ? msg.getAddress() : msg.getThreadAddress();
         final Recipients recipients = RecipientFactory.getRecipientsFromString(context, recipientAddress, false);
         final long threadId = threads.getThreadIdFor(recipients);
 
