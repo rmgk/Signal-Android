@@ -1,6 +1,8 @@
 package org.thoughtcrime.securesms.database.backup;
 
 import android.support.annotation.Nullable;
+import org.thoughtcrime.securesms.attachments.Attachment;
+import org.thoughtcrime.securesms.database.PlaintextBackupImporter;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlPullParserFactory;

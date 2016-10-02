@@ -1,5 +1,6 @@
 package org.thoughtcrime.securesms.database;
 
+import android.content.ContentValues;
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteStatement;
@@ -7,8 +8,12 @@ import android.os.Environment;
 import android.provider.Telephony;
 import android.util.Log;
 
+import android.util.Pair;
+import org.thoughtcrime.securesms.attachments.Attachment;
+import org.thoughtcrime.securesms.attachments.AttachmentId;
 import org.thoughtcrime.securesms.crypto.MasterCipher;
 import org.thoughtcrime.securesms.crypto.MasterSecret;
+import org.thoughtcrime.securesms.crypto.MasterSecretUnion;
 import org.thoughtcrime.securesms.database.backup.MmsBackupItem;
 import org.thoughtcrime.securesms.database.backup.PlaintextBackupExporter;
 import org.thoughtcrime.securesms.database.backup.SmsBackupItem;
@@ -16,11 +21,18 @@ import org.thoughtcrime.securesms.database.backup.XmlBackupReader;
 import org.thoughtcrime.securesms.database.backup.BackupItem;
 import org.thoughtcrime.securesms.recipients.RecipientFactory;
 import org.thoughtcrime.securesms.recipients.Recipients;
+import org.thoughtcrime.securesms.util.Base64;
+import org.thoughtcrime.securesms.util.MediaUtil;
 import org.xmlpull.v1.XmlPullParserException;
+import ws.com.google.android.mms.MmsException;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.Charset;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 public class PlaintextBackupImporter {
@@ -32,15 +44,21 @@ public class PlaintextBackupImporter {
   {
     Log.w(TAG, "importPlaintext()");
     SmsDatabase    smsDatabase    = DatabaseFactory.getSmsDatabase(context);
-    SQLiteDatabase smsTransaction = smsDatabase.beginTransaction();
+    SQLiteDatabase transaction = smsDatabase.beginTransaction();
     MmsDatabase    mmsDatabase    = DatabaseFactory.getMmsDatabase(context);
-    SQLiteDatabase mmsTransaction = mmsDatabase.beginTransaction();
+    AttachmentDatabase attachmentDatabase   = DatabaseFactory.getAttachmentDatabase(context);
+    MmsAddressDatabase addressDatabase = DatabaseFactory.getMmsAddressDatabase(context);
 
     try {
       ThreadDatabase threads         = DatabaseFactory.getThreadDatabase(context);
       XmlBackupReader backup          = new XmlBackupReader(getPlaintextExportFile().getAbsolutePath());
       MasterCipher   masterCipher    = new MasterCipher(masterSecret);
       Set<Long>      modifiedThreads = new HashSet<>();
+
+      SQLiteStatement mmsStatement = mmsDatabase.createInsertStatement(transaction);
+      SQLiteStatement smsStatement = smsDatabase.createInsertStatement(transaction);
+
+
       BackupItem msg;
 
       while ((msg = backup.getNext()) != null) {
@@ -54,31 +72,80 @@ public class PlaintextBackupImporter {
         }
         final long threadId = getThreadId(context, threads, msg);
 
-        SQLiteStatement statement;
         if (msg instanceof SmsBackupItem) {
-          statement = smsDatabase.createInsertStatement(smsTransaction);
-          importSms(statement, (SmsBackupItem) msg, threadId, masterCipher);
+          addSmstoStatement(smsStatement, (SmsBackupItem) msg, threadId, masterCipher);
+          smsStatement.execute();
         } else {
-          statement = mmsDatabase.createInsertStatement(mmsTransaction);
-          importMms(statement, (MmsBackupItem) msg, threadId, masterCipher);
+          MmsBackupItem mms = (MmsBackupItem) msg;
+          addMmsToStatement(mmsStatement, mms, threadId, masterCipher);
+          long messageId = mmsStatement.executeInsert();
+
+          addressDatabase.insertAddressesForId(messageId, mms.getAddresses());
+          for (Map<String, String> part : mms.parts) {
+            insertAttachment(masterSecret, messageId, part, attachmentDatabase);
+          }
+
         }
-        statement.execute();
 
         modifiedThreads.add(threadId);
       }
 
       for (long threadId : modifiedThreads) {
         threads.update(threadId, true);
+        mmsDatabase.notifyConversationListeners(threadId);
+        smsDatabase.notifyConversationListeners(threadId);
       }
+
+      transaction.setTransactionSuccessful();
 
       Log.w(TAG, "Exited loop");
     } catch (XmlPullParserException e) {
       Log.w(TAG, e);
       throw new IOException("XML Parsing error!");
     } finally {
-      smsDatabase.endTransaction(smsTransaction);
-      mmsDatabase.endTransaction(mmsTransaction);
+      transaction.endTransaction();
     }
+  }
+
+
+  private static AttachmentId insertAttachment(MasterSecret masterSecret, long mmsId, Map<String, String> mmspart, AttachmentDatabase attachmentDatabase) {
+    Log.w(TAG, "Inserting attachment for mms id: " + mmsId);
+
+    long uniqueId = System.currentTimeMillis();
+
+    Pair<File, Long> partData;
+
+    try {
+      for (String key: mmspart.keySet()) {
+      }
+      InputStream in = new Base64.InputStream(new ByteArrayInputStream(mmspart.get("data").getBytes(Charset.forName("UTF-8"))), Base64.DECODE | Base64.DONT_GUNZIP);
+      partData = attachmentDatabase.setAttachmentData(masterSecret, in);
+    }
+    catch (MmsException e) {
+      throw new RuntimeException(e);
+    }
+
+
+    ContentValues contentValues = new ContentValues();
+    contentValues.put(AttachmentDatabase.MMS_ID, mmsId);
+    contentValues.put(AttachmentDatabase.CONTENT_TYPE, mmspart.get(Telephony.Mms.Part.CONTENT_TYPE));
+    contentValues.put(AttachmentDatabase.TRANSFER_STATE, AttachmentDatabase.TRANSFER_PROGRESS_DONE);
+    contentValues.put(AttachmentDatabase.UNIQUE_ID, uniqueId);
+    contentValues.put(AttachmentDatabase.CONTENT_LOCATION, mmspart.get(Telephony.Mms.Part.CONTENT_LOCATION));
+    contentValues.put(AttachmentDatabase.CONTENT_DISPOSITION, mmspart.get(Telephony.Mms.Part.CONTENT_DISPOSITION));
+    contentValues.put(AttachmentDatabase.NAME, mmspart.get(Telephony.Mms.Part.NAME));
+
+    contentValues.put(AttachmentDatabase.DATA, partData.first.getAbsolutePath());
+    contentValues.put(AttachmentDatabase.SIZE, partData.second);
+
+    long rowId = attachmentDatabase.insertContentValues(contentValues);
+    AttachmentId attachmentId = new AttachmentId(rowId, uniqueId);
+
+    Log.i(TAG, "added attachment " + attachmentId);
+
+
+    attachmentDatabase.scheduleThumbnailFetch(masterSecret, attachmentId);
+    return attachmentId;
   }
 
 
@@ -94,14 +161,12 @@ public class PlaintextBackupImporter {
     final String recipientAddress = (msg.getSignalGroupAddress() == null) ?
             msg.getAddress().replace('~', ',') :  // '~' is the address separator used by SMSB&R
             msg.getSignalGroupAddress();
-    Log.w(TAG, "getting threads id for " + recipientAddress);
     final Recipients recipients = RecipientFactory.getRecipientsFromString(context, recipientAddress, false);
     long id = threads.getThreadIdFor(recipients);
-    Log.w(TAG, "id is " + id);
     return id;
   }
 
-  private static void importSms(SQLiteStatement statement, SmsBackupItem sms, long threadId, MasterCipher masterCipher) {
+  private static void addSmstoStatement(SQLiteStatement statement, SmsBackupItem sms, long threadId, MasterCipher masterCipher) {
     addStringToStatement(statement, 1, sms.getAddress());
     addNullToStatement(statement, 2); //PERSON
     addLongToStatement(statement, 3, sms.getDateSent());
@@ -118,7 +183,7 @@ public class PlaintextBackupImporter {
     addLongToStatement(statement, 13, threadId);
   }
 
-  private static void importMms(SQLiteStatement statement, MmsBackupItem mms, long threadId, MasterCipher masterCipher) {
+  private static void addMmsToStatement(SQLiteStatement statement, MmsBackupItem mms, long threadId, MasterCipher masterCipher) {
     String[] args = {
             String.valueOf(threadId),
             mms.attributes.get(Telephony.BaseMmsColumns.DATE_SENT),

@@ -2,25 +2,40 @@ package org.thoughtcrime.securesms.database.backup;
 
 import android.provider.Telephony;
 import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
+import android.util.Pair;
 import com.google.common.base.Charsets;
+import org.thoughtcrime.securesms.attachments.Attachment;
+import org.thoughtcrime.securesms.database.MmsAddresses;
+import org.thoughtcrime.securesms.database.PlaintextBackupImporter;
+import org.thoughtcrime.securesms.util.Base64;
 import org.whispersystems.libsignal.logging.Log;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 import ws.com.google.android.mms.pdu.PduHeaders;
 
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class MmsBackupItem extends BackupItem {
 
+  private static final String LOG = MmsBackupItem.class.getSimpleName();
+
   // MMS attributes
-  private int partCount        = 1;
   protected String subject;
   private int msgBox;
-  public String sender;
-  public List<String> receivers = new ArrayList<>(10);
+  private String senderFROM;
+  private List<String> receiversTO = new ArrayList<>(10);
+  private List<String> receiversCC = new ArrayList<>(0);
+  private List<String> receiversBCC = new ArrayList<>(0);
+  public List<Map<String, String>> parts = new ArrayList<>(1);
 
 
 
@@ -30,12 +45,9 @@ public class MmsBackupItem extends BackupItem {
       if (parser.getEventType() != XmlPullParser.START_TAG) {
         continue;
       }
+      Log.d("MmsBackupItem", "processing line " + parser.getLineNumber());
       if (parser.getName().equalsIgnoreCase("part")) {
-        Log.w("MMS", "processing part " + parser.getLineNumber());
-        if (body == null) {
-          // read first text part only
-          readTextOnlyPart(parser);
-        }
+          readPart(parser);
       }
       if (parser.getName().equalsIgnoreCase("addr")) {
         readAddress(parser);
@@ -45,11 +57,21 @@ public class MmsBackupItem extends BackupItem {
 
   private void readAddress(@NonNull XmlPullParser parser) {
     String address = parser.getAttributeValue(null, Telephony.Mms.Addr.ADDRESS);
-    if (parser.getAttributeValue(null, Telephony.Mms.Addr.TYPE).equals(PduHeaders.FROM)) {
-      sender = address;
-    }
-    else {
-      receivers.add(address);
+    switch (Integer.parseInt(parser.getAttributeValue(null, Telephony.Mms.Addr.TYPE))) {
+      case PduHeaders.FROM:
+        senderFROM = address;
+        break;
+      case PduHeaders.TO:
+        receiversTO.add(address);
+        break;
+      case PduHeaders.CC:
+        receiversCC.add(address);
+        break;
+      case PduHeaders.BCC:
+        receiversBCC.add(address);
+        break;
+      default:
+        Log.w(LOG, "unknown address header while parsing: " + parser.getLineNumber());
     }
   }
 
@@ -68,18 +90,26 @@ public class MmsBackupItem extends BackupItem {
     }
   }
 
-  protected void readTextOnlyPart(@NonNull XmlPullParser parser) {
+  protected void readPart(@NonNull XmlPullParser parser) {
     String mime = parser.getAttributeValue(null, Telephony.Mms.Part.CONTENT_TYPE);
     String text = parser.getAttributeValue(null, Telephony.Mms.Part.TEXT);
-    if ((mime != null) && (text != null) && mime.equals("text/plain")) {
-      Log.w("DEBUG", "body is: " + text);
+    String data = parser.getAttributeValue(null, "data");
+    if ((mime != null) && (text != null) && mime.equals("text/plain") && body == null) {
       body = text;
+    }
+    else if (data != null && mime != null && !mime.equals("application/smil")) {
+      Log.i(LOG, "importing part " + parser.getLineNumber() + " " + mime);
+      Map<String, String> partAttribuse = new HashMap<>();
+      for (int i = 0, count = parser.getAttributeCount(); i < count; i++) {
+        partAttribuse.put(parser.getAttributeName(i), parser.getAttributeValue(i));
+      }
+      parts.add(partAttribuse);
     }
   }
 
 
   public int getPartCount() {
-    return partCount;
+    return parts.size();
   }
 
   public int getMessageBox() {
@@ -89,5 +119,9 @@ public class MmsBackupItem extends BackupItem {
   @Override
   public int getType() {
     return getMessageBox();
+  }
+
+  public MmsAddresses getAddresses() {
+    return new MmsAddresses(senderFROM, receiversTO, receiversCC, receiversBCC);
   }
 }

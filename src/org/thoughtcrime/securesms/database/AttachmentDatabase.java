@@ -60,6 +60,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 
 public class AttachmentDatabase extends Database {
   
@@ -435,7 +436,7 @@ public class AttachmentDatabase extends Database {
     }
   }
 
-  private @NonNull Pair<File, Long> setAttachmentData(@NonNull MasterSecret masterSecret,
+  /*package*/ @NonNull Pair<File, Long> setAttachmentData(@NonNull MasterSecret masterSecret,
                                                       @NonNull InputStream in)
       throws MmsException
   {
@@ -497,7 +498,6 @@ public class AttachmentDatabase extends Database {
   {
     Log.w(TAG, "Inserting attachment for mms id: " + mmsId);
 
-    SQLiteDatabase   database = databaseHelper.getWritableDatabase();
     Pair<File, Long> partData = null;
     long             uniqueId = System.currentTimeMillis();
     String           fileName = null;
@@ -530,7 +530,7 @@ public class AttachmentDatabase extends Database {
       contentValues.put(SIZE, partData.second);
     }
 
-    long         rowId        = database.insert(TABLE_NAME, null, contentValues);
+    long         rowId        = insertContentValues(contentValues);
     AttachmentId attachmentId = new AttachmentId(rowId, uniqueId);
 
     if (partData != null) {
@@ -542,16 +542,26 @@ public class AttachmentDatabase extends Database {
           updateAttachmentThumbnail(masterSecret.getMasterSecret().get(), attachmentId, thumbnailData.toDataStream(), thumbnailData.getAspectRatio());
         } else {
           Log.w(TAG, "Retrieving video thumbnail failed, submitting thumbnail generation job...");
-          thumbnailExecutor.submit(new ThumbnailFetchCallable(masterSecret.getMasterSecret().get(), attachmentId));
+          scheduleThumbnailFetch(masterSecret.getMasterSecret().get(), attachmentId);
         }
       } else {
         Log.w(TAG, "Submitting thumbnail generation job...");
-        thumbnailExecutor.submit(new ThumbnailFetchCallable(masterSecret.getMasterSecret().get(), attachmentId));
+        scheduleThumbnailFetch(masterSecret.getMasterSecret().get(), attachmentId);
       }
     }
 
     return attachmentId;
   }
+
+  /*package*/ Future<InputStream> scheduleThumbnailFetch(MasterSecret masterSecret, AttachmentId attachmentId) {
+    return thumbnailExecutor.submit(new ThumbnailFetchCallable(masterSecret, attachmentId));
+  }
+
+  /*package*/  long insertContentValues(ContentValues contentValues) {
+    SQLiteDatabase   database = databaseHelper.getWritableDatabase();
+    return database.insert(TABLE_NAME, null, contentValues);
+  }
+
 
 
   @VisibleForTesting
