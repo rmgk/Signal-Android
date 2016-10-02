@@ -116,7 +116,7 @@ public class XmlBackupWriter {
   }
 
   public void storeAttribute(@NonNull String name, boolean value) throws IOException {
-    storeAttribute(name, String.valueOf(value));
+    storeAttribute(name, value ? "1" : "0");
   }
 
 
