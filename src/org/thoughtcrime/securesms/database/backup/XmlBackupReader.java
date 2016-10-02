@@ -1,13 +1,12 @@
 package org.thoughtcrime.securesms.database.backup;
 
+import android.support.annotation.Nullable;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlPullParserFactory;
 
-import java.io.BufferedWriter;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileWriter;
 import java.io.IOException;
 
 public class XmlBackupReader {
@@ -19,18 +18,21 @@ public class XmlBackupReader {
     parser.setInput(new FileInputStream(path), null);
   }
 
-  public XmlBackupItem getNext() throws IOException, XmlPullParserException {
+  public @Nullable
+  BackupItem getNext() throws IOException, XmlPullParserException {
     while (parser.next() != XmlPullParser.END_DOCUMENT) {
       if (parser.getEventType() != XmlPullParser.START_TAG) {
-        continue;
-      }
-      if (!parser.getName().equalsIgnoreCase("sms")) {
         continue;
       }
       if (parser.getAttributeCount() <= 0) {
         continue;
       }
-      return new XmlBackupItem.Sms(parser);
+      if (parser.getName().equalsIgnoreCase("sms")) {
+        return new SmsBackupItem(parser);
+      }
+      else if (parser.getName().equalsIgnoreCase("mms")) {
+        return new MmsBackupItem(parser);
+      }
     }
     return null;
   }
