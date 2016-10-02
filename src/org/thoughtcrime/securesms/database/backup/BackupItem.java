@@ -18,7 +18,7 @@ public abstract class BackupItem {
   protected String subject;
   protected String body;
   protected int read;
-  protected long signalType;
+  protected Long signalType;
   protected String signalGroupAddress;
 
   public Map<String, String> attributes = new HashMap<>();
@@ -83,6 +83,10 @@ public abstract class BackupItem {
 
   public String getSignalGroupAddress() {
     return signalGroupAddress;
+  }
+
+  public Long getSignalType() {
+    return signalType;
   }
 
   public abstract int getType();

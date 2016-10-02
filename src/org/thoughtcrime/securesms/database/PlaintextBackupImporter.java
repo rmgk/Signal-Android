@@ -45,11 +45,11 @@ public class PlaintextBackupImporter {
 
       while ((msg = backup.getNext()) != null) {
         if (msg.getAddress() == null || msg.getAddress().equals("null")) {
-          Log.w(TAG, "did not import message with null address");
+          Log.i(TAG, "did not import message with null address");
           continue;
         }
         if (!isAppropriateTypeForImport(msg.getType())) {
-          Log.w(TAG, "did not import message with unhandled type: " + msg.getType());
+          Log.i(TAG, "did not import message with unhandled type: " + msg.getType());
           continue;
         }
         final long threadId = getThreadId(context, threads, msg);
@@ -109,7 +109,8 @@ public class PlaintextBackupImporter {
     addLongToStatement(statement, 5, sms.getProtocol());
     addLongToStatement(statement, 6, sms.getRead());
     addLongToStatement(statement, 7, sms.getDeliveryStatus());
-    addTranslatedTypeToStatement(statement, 8, sms.getType());
+    if (sms.getSignalType() == null) addTranslatedTypeToStatement(statement, 8, sms.getType());
+    else addLongToStatement(statement, 8, sms.getSignalType());
     addNullToStatement(statement, 9); //REPLY_PATH_PRESENT
     addStringToStatement(statement, 10, sms.getSubject());
     addEncryptedStingToStatement(masterCipher, statement, 11, sms.getBody());
@@ -122,7 +123,9 @@ public class PlaintextBackupImporter {
             String.valueOf(threadId),
             mms.attributes.get(Telephony.BaseMmsColumns.DATE_SENT),
             mms.attributes.get(Telephony.BaseMmsColumns.DATE),
-            String.valueOf(SmsDatabase.Types.translateFromSystemBaseType(mms.getMessageBox()) | SmsDatabase.Types.ENCRYPTION_SYMMETRIC_BIT),
+            (mms.getSignalType() == null) ?
+                    String.valueOf(SmsDatabase.Types.translateFromSystemBaseType(mms.getMessageBox()) | SmsDatabase.Types.ENCRYPTION_SYMMETRIC_BIT) :
+                    String.valueOf(mms.getSignalType()),
             mms.attributes.get(Telephony.BaseMmsColumns.READ),
             mms.attributes.get(Telephony.BaseMmsColumns.MESSAGE_ID),
             mms.attributes.get(Telephony.BaseMmsColumns.SUBJECT),
