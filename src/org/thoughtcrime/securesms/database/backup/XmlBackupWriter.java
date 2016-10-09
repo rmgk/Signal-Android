@@ -331,6 +331,9 @@ public class XmlBackupWriter {
     // same as SMS.TYPE
     storeAttribute(Telephony.BaseMmsColumns.MESSAGE_BOX, MmsSmsColumns.Types.translateToSystemBaseType(record.getType()));
     storeAttribute(Telephony.BaseMmsColumns.CONTENT_TYPE, ContentType.MULTIPART_RELATED);
+    // unknown what MESSAGE_TYPE does, but this works when importing MMS (128 worked too)
+    storeAttribute(Telephony.BaseMmsColumns.MESSAGE_TYPE, 132);
+    storeAttribute(Telephony.BaseMmsColumns.MESSAGE_ID, "Signal-" + record.getId());
 
     startParts();
     List<SmilFromRecord.AttachmentLocation> attachmentLocations = new ArrayList<>();
