@@ -2,23 +2,13 @@ package org.thoughtcrime.securesms.database.backup;
 
 import android.provider.Telephony;
 import android.support.annotation.NonNull;
-import android.util.Pair;
-import com.google.common.base.Charsets;
-import org.thoughtcrime.securesms.attachments.Attachment;
 import org.thoughtcrime.securesms.database.MmsAddresses;
-import org.thoughtcrime.securesms.database.PlaintextBackupImporter;
-import org.thoughtcrime.securesms.util.Base64;
 import org.whispersystems.libsignal.logging.Log;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 import ws.com.google.android.mms.pdu.PduHeaders;
 
-import java.io.BufferedInputStream;
-import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
