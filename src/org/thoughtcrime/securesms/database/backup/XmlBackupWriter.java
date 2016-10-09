@@ -332,15 +332,27 @@ public class XmlBackupWriter {
     storeAttribute(Telephony.BaseMmsColumns.MESSAGE_BOX, MmsSmsColumns.Types.translateToSystemBaseType(record.getType()));
 
     startParts();
-    storeBodyAsPart(record);
-
+    List<SmilFromRecord.AttachmentLocation> attachmentLocations = new ArrayList<>();
+    attachmentLocations.add(new SmilFromRecord.AttachmentLocation("text_0", ContentType.TEXT_PLAIN));
     int count = 0;
-    for (Attachment attachment : attachmentList) {
-      storeAttachmentAsPart(attachment, "attachment" + count);
+    for (Attachment attachment: attachmentList) attachmentLocations.add(new SmilFromRecord.AttachmentLocation("attachment" + count, attachment.getContentType()));
+    storeSmilAsPart(record, attachmentLocations);
+    storeBodyAsPart(record);
+    attachmentLocations.remove(0);
+    for (int i = 0; i < attachmentLocations.size(); ++i) {
+      storeAttachmentAsPart(attachmentList.get(i), attachmentLocations.get(0).getLocation());
       count++;
+
     }
 
     closeParts();
+  }
+
+  private void storeSmilAsPart(MessageRecord record, List<SmilFromRecord.AttachmentLocation> attachmentList) throws IOException {
+    String smil = SmilFromRecord.getSmilBody(record, attachmentList);
+    startPart();
+    storeCommonPartAttributes("signal.smil", ContentType.APP_SMIL, /*seq*/ -1, /*text*/ smil);
+    closePart();
   }
 
   private void storeRecipient(String number, boolean sender) throws IOException {
@@ -360,8 +372,7 @@ public class XmlBackupWriter {
     startPart();
     // for my example mms, the sequence for all real content elements was 0
     // and the sequence for the main "smil" file was -1
-    storePartAttributes(name, attachment.getContentType());
-    storeAttribute(Telephony.Mms.Part.TEXT, null);
+    storeCommonPartAttributes(name, attachment.getContentType(), /*seq*/ 0, /*text*/ null);
     storeAttributeStream(DATA, PartAuthority.getAttachmentStream(context, masterSecret, attachment.getDataUri()));
     closePart();
   }
@@ -370,22 +381,23 @@ public class XmlBackupWriter {
     // store message text only
     startPart();
 
-    storePartAttributes("text_0", ContentType.TEXT_PLAIN);
-    storeAttribute(Telephony.Mms.Part.TEXT, getBody(record));
+    storeCommonPartAttributes("text_0", ContentType.TEXT_PLAIN, /*seq*/ 0, getBody(record));
     closePart();
   }
 
-  private void storePartAttributes(String name, String contentType) throws IOException {
-    storeAttribute(Telephony.Mms.Part.SEQ, 0);
+  private void storeCommonPartAttributes(String name, String contentType, int seq, @Nullable String text) throws IOException {
+    storeAttribute(Telephony.Mms.Part.SEQ, seq);
     storeAttribute(Telephony.Mms.Part.CONTENT_TYPE, contentType);
     storeAttribute(Telephony.Mms.Part.NAME, name);
-    storeAttribute(Telephony.Mms.Part.CHARSET, null);
     storeAttribute(Telephony.Mms.Part.CONTENT_DISPOSITION, null);
     storeAttribute(Telephony.Mms.Part.FILENAME, null);
     storeAttribute(Telephony.Mms.Part.CONTENT_ID, "<" + name + ">"); // should be int?
     storeAttribute(Telephony.Mms.Part.CONTENT_LOCATION, name);      // should be int?
     storeAttribute(Telephony.Mms.Part.CT_START, null);
     storeAttribute(Telephony.Mms.Part.CT_TYPE, null);
+    if (text == null) storeAttribute(Telephony.Mms.Part.CHARSET, null);
+    else storeAttribute(Telephony.Mms.Part.CHARSET, CharacterSets.UTF_8);
+    storeAttribute(Telephony.Mms.Part.TEXT, text);
   }
 
 
