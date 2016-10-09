@@ -22,6 +22,7 @@ import org.thoughtcrime.securesms.util.GroupUtil;
 import org.thoughtcrime.securesms.util.TextSecurePreferences;
 import org.whispersystems.libsignal.logging.Log;
 import ws.com.google.android.mms.ContentType;
+import ws.com.google.android.mms.pdu.CharacterSets;
 import ws.com.google.android.mms.pdu.PduHeaders;
 
 import java.io.BufferedInputStream;
@@ -72,10 +73,6 @@ public class XmlBackupWriter {
   public static final String DISPLAY_NAME = "_display_name"; // SMS Backup & Restore, optional
   public static final String SIZE = "_size";         // SMS Backup & Restore, optional
   public static final String DATA = "data";          // SMS Backup & Restore, optional
-
-
-  // character sets
-  public static final int UTF_8 = 106;
 
 
   // XML escaping
@@ -349,7 +346,7 @@ public class XmlBackupWriter {
   private void storeRecipient(String number, boolean sender) throws IOException {
     startAddress();
     storeAttribute(Telephony.Mms.Addr.ADDRESS, number);
-    storeAttribute(Telephony.Mms.Addr.CHARSET, UTF_8);
+    storeAttribute(Telephony.Mms.Addr.CHARSET, CharacterSets.UTF_8);
     storeAttribute(Telephony.Mms.Addr.TYPE, sender ? PduHeaders.FROM : PduHeaders.TO);
     closeAddress();
   }
