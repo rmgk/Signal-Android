@@ -330,6 +330,7 @@ public class XmlBackupWriter {
   private void addMMSAttributes(MessageRecord record, List<Attachment> attachmentList) throws IOException {
     // same as SMS.TYPE
     storeAttribute(Telephony.BaseMmsColumns.MESSAGE_BOX, MmsSmsColumns.Types.translateToSystemBaseType(record.getType()));
+    storeAttribute(Telephony.BaseMmsColumns.CONTENT_TYPE, ContentType.MULTIPART_RELATED);
 
     startParts();
     List<SmilFromRecord.AttachmentLocation> attachmentLocations = new ArrayList<>();
