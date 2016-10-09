@@ -9,21 +9,19 @@ import org.thoughtcrime.securesms.attachments.Attachment;
 import org.thoughtcrime.securesms.crypto.MasterSecret;
 import org.thoughtcrime.securesms.database.DatabaseFactory;
 import org.thoughtcrime.securesms.database.GroupDatabase;
-import org.thoughtcrime.securesms.database.MmsDatabase;
 import org.thoughtcrime.securesms.database.MmsSmsColumns;
 import org.thoughtcrime.securesms.database.SmsDatabase;
 import org.thoughtcrime.securesms.database.ThreadDatabase;
 import org.thoughtcrime.securesms.database.model.MediaMmsMessageRecord;
 import org.thoughtcrime.securesms.database.model.MessageRecord;
-import org.thoughtcrime.securesms.database.model.SmsMessageRecord;
 import org.thoughtcrime.securesms.mms.PartAuthority;
 import org.thoughtcrime.securesms.recipients.Recipient;
 import org.thoughtcrime.securesms.recipients.Recipients;
 import org.thoughtcrime.securesms.util.Base64;
 import org.thoughtcrime.securesms.util.GroupUtil;
 import org.thoughtcrime.securesms.util.TextSecurePreferences;
-import org.thoughtcrime.securesms.util.Util;
 import org.whispersystems.libsignal.logging.Log;
+import ws.com.google.android.mms.ContentType;
 import ws.com.google.android.mms.pdu.PduHeaders;
 
 import java.io.BufferedInputStream;
@@ -365,8 +363,24 @@ public class XmlBackupWriter {
     startPart();
     // for my example mms, the sequence for all real content elements was 0
     // and the sequence for the main "smil" file was -1
+    storePartAttributes(name, attachment.getContentType());
+    storeAttribute(Telephony.Mms.Part.TEXT, null);
+    storeAttributeStream(DATA, PartAuthority.getAttachmentStream(context, masterSecret, attachment.getDataUri()));
+    closePart();
+  }
+
+  private void storeBodyAsPart(MessageRecord record) throws IOException {
+    // store message text only
+    startPart();
+
+    storePartAttributes("text_0", ContentType.TEXT_PLAIN);
+    storeAttribute(Telephony.Mms.Part.TEXT, getBody(record));
+    closePart();
+  }
+
+  private void storePartAttributes(String name, String contentType) throws IOException {
     storeAttribute(Telephony.Mms.Part.SEQ, 0);
-    storeAttribute(Telephony.Mms.Part.CONTENT_TYPE, attachment.getContentType());
+    storeAttribute(Telephony.Mms.Part.CONTENT_TYPE, contentType);
     storeAttribute(Telephony.Mms.Part.NAME, name);
     storeAttribute(Telephony.Mms.Part.CHARSET, null);
     storeAttribute(Telephony.Mms.Part.CONTENT_DISPOSITION, null);
@@ -375,30 +389,8 @@ public class XmlBackupWriter {
     storeAttribute(Telephony.Mms.Part.CONTENT_LOCATION, name);      // should be int?
     storeAttribute(Telephony.Mms.Part.CT_START, null);
     storeAttribute(Telephony.Mms.Part.CT_TYPE, null);
-    storeAttribute(Telephony.Mms.Part.TEXT, null);
-    storeAttributeStream(DATA, PartAuthority.getAttachmentStream(context, masterSecret, attachment.getDataUri()));
-    closePart();
   }
 
-
-  private void storeBodyAsPart(MessageRecord record) throws IOException {
-    // store message text only
-    startPart();
-
-    storeAttribute(Telephony.Mms.Part.SEQ, 0);
-    storeAttribute(Telephony.Mms.Part.CONTENT_TYPE, "text/plain");
-    storeAttribute(Telephony.Mms.Part.NAME, null);
-    storeAttribute(Telephony.Mms.Part.CHARSET, UTF_8);
-    storeAttribute(Telephony.Mms.Part.CONTENT_DISPOSITION, null);
-    storeAttribute(Telephony.Mms.Part.FILENAME, null);
-    storeAttribute(Telephony.Mms.Part.CONTENT_ID, "<text_0>"); // should be int?
-    storeAttribute(Telephony.Mms.Part.CONTENT_LOCATION, "text_0.txt");      // should be int?
-    storeAttribute(Telephony.Mms.Part.CT_START, null);
-    storeAttribute(Telephony.Mms.Part.CT_TYPE, null);
-    storeAttribute(Telephony.Mms.Part.TEXT, getBody(record));
-
-    closePart();
-  }
 
   private String getBody(MessageRecord record) {
     String displayedMessage = record.getDisplayBody().toString();
