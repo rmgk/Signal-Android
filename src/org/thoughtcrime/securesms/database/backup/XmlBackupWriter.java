@@ -337,14 +337,17 @@ public class XmlBackupWriter {
 
     startParts();
     List<SmilFromRecord.AttachmentLocation> attachmentLocations = new ArrayList<>();
-    attachmentLocations.add(new SmilFromRecord.AttachmentLocation("text_0", ContentType.TEXT_PLAIN));
     int count = 0;
     for (Attachment attachment: attachmentList) attachmentLocations.add(new SmilFromRecord.AttachmentLocation("attachment" + count, attachment.getContentType()));
+    if (!TextUtils.isEmpty(record.getBody().getBody())) {
+      attachmentLocations.add(new SmilFromRecord.AttachmentLocation("text_0", ContentType.TEXT_PLAIN));
+    }
     storeSmilAsPart(record, attachmentLocations);
-    storeBodyAsPart(record);
-    attachmentLocations.remove(0);
-    for (int i = 0; i < attachmentLocations.size(); ++i) {
-      storeAttachmentAsPart(attachmentList.get(i), attachmentLocations.get(0).getLocation());
+    if (!TextUtils.isEmpty(record.getBody().getBody())) {
+      storeBodyAsPart(record);
+    }
+    for (int i = 0; i < attachmentList.size(); ++i) {
+      storeAttachmentAsPart(attachmentList.get(i), attachmentLocations.get(i).getLocation());
       count++;
 
     }
