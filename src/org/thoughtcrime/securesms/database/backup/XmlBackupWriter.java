@@ -339,10 +339,10 @@ public class XmlBackupWriter {
     List<SmilFromRecord.AttachmentLocation> attachmentLocations = new ArrayList<>();
     int count = 0;
     for (Attachment attachment: attachmentList) attachmentLocations.add(new SmilFromRecord.AttachmentLocation("attachment" + count, attachment.getContentType()));
-    if (!TextUtils.isEmpty(record.getBody().getBody())) {
-      attachmentLocations.add(new SmilFromRecord.AttachmentLocation("text_0", ContentType.TEXT_PLAIN));
-    }
-    storeSmilAsPart(record, attachmentLocations);
+//    if (!TextUtils.isEmpty(record.getBody().getBody())) {
+//      attachmentLocations.add(new SmilFromRecord.AttachmentLocation("text_0", ContentType.TEXT_PLAIN));
+//    }
+//    storeSmilAsPart(record, attachmentLocations);
     if (!TextUtils.isEmpty(record.getBody().getBody())) {
       storeBodyAsPart(record);
     }
@@ -358,7 +358,7 @@ public class XmlBackupWriter {
   private void storeSmilAsPart(MessageRecord record, List<SmilFromRecord.AttachmentLocation> attachmentList) throws IOException {
     String smil = SmilFromRecord.getSmilBody(record, attachmentList);
     startPart();
-    storeCommonPartAttributes("signal.smil", ContentType.APP_SMIL, /*seq*/ -1, /*text*/ smil);
+    storeCommonPartAttributes(ContentType.APP_SMIL, smil);
     closePart();
   }
 
@@ -379,7 +379,7 @@ public class XmlBackupWriter {
     startPart();
     // for my example mms, the sequence for all real content elements was 0
     // and the sequence for the main "smil" file was -1
-    storeCommonPartAttributes(name, attachment.getContentType(), /*seq*/ 0, /*text*/ null);
+    storeCommonPartAttributes(attachment.getContentType(), null);
     storeAttributeStream(DATA, PartAuthority.getAttachmentStream(context, masterSecret, attachment.getDataUri()));
     closePart();
   }
@@ -388,23 +388,24 @@ public class XmlBackupWriter {
     // store message text only
     startPart();
 
-    storeCommonPartAttributes("text_0", ContentType.TEXT_PLAIN, /*seq*/ 0, getBody(record));
+    storeCommonPartAttributes(ContentType.TEXT_PLAIN, getBody(record));
     closePart();
   }
 
-  private void storeCommonPartAttributes(String name, String contentType, int seq, @Nullable String text) throws IOException {
-    storeAttribute(Telephony.Mms.Part.SEQ, seq);
+  private void storeCommonPartAttributes(String contentType, @Nullable String text) throws IOException {
+//    storeAttribute(Telephony.Mms.Part.SEQ, seq);
     storeAttribute(Telephony.Mms.Part.CONTENT_TYPE, contentType);
-    storeAttribute(Telephony.Mms.Part.NAME, name);
-    storeAttribute(Telephony.Mms.Part.CONTENT_DISPOSITION, null);
-    storeAttribute(Telephony.Mms.Part.FILENAME, null);
-    storeAttribute(Telephony.Mms.Part.CONTENT_ID, "<" + name + ">"); // should be int?
-    storeAttribute(Telephony.Mms.Part.CONTENT_LOCATION, name);      // should be int?
-    storeAttribute(Telephony.Mms.Part.CT_START, null);
-    storeAttribute(Telephony.Mms.Part.CT_TYPE, null);
-    if (text == null) storeAttribute(Telephony.Mms.Part.CHARSET, null);
-    else storeAttribute(Telephony.Mms.Part.CHARSET, CharacterSets.UTF_8);
-    storeAttribute(Telephony.Mms.Part.TEXT, text);
+//    storeAttribute(Telephony.Mms.Part.NAME, name);
+//    storeAttribute(Telephony.Mms.Part.CONTENT_DISPOSITION, null);
+//    storeAttribute(Telephony.Mms.Part.FILENAME, null);
+//    storeAttribute(Telephony.Mms.Part.CONTENT_ID, "<" + name + ">"); // should be int?
+//    storeAttribute(Telephony.Mms.Part.CONTENT_LOCATION, name);      // should be int?
+//    storeAttribute(Telephony.Mms.Part.CT_START, null);
+//    storeAttribute(Telephony.Mms.Part.CT_TYPE, null);
+    if (text != null) {
+      storeAttribute(Telephony.Mms.Part.CHARSET, CharacterSets.UTF_8);
+      storeAttribute(Telephony.Mms.Part.TEXT, text);
+    }
   }
 
 
