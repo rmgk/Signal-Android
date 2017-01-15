@@ -380,6 +380,8 @@ public class XmlBackupWriter {
     // for my example mms, the sequence for all real content elements was 0
     // and the sequence for the main "smil" file was -1
     storeCommonPartAttributes(attachment.getContentType(), null);
+    // CONTENT_LOCATION seems to be used by Backup&Restore to create temporary files when viewing images
+    storeAttribute(Telephony.Mms.Part.CONTENT_LOCATION, name);      // should be int?
     storeAttributeStream(DATA, PartAuthority.getAttachmentStream(context, masterSecret, attachment.getDataUri()));
     closePart();
   }
