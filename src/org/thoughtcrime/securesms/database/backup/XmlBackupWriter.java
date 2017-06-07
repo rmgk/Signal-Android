@@ -5,6 +5,9 @@ import android.provider.Telephony;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.text.TextUtils;
+import com.google.android.mms.ContentType;
+import com.google.android.mms.pdu_alt.CharacterSets;
+import com.google.android.mms.pdu_alt.PduHeaders;
 import org.thoughtcrime.securesms.attachments.Attachment;
 import org.thoughtcrime.securesms.crypto.MasterSecret;
 import org.thoughtcrime.securesms.database.DatabaseFactory;
@@ -21,9 +24,9 @@ import org.thoughtcrime.securesms.util.Base64;
 import org.thoughtcrime.securesms.util.GroupUtil;
 import org.thoughtcrime.securesms.util.TextSecurePreferences;
 import org.whispersystems.libsignal.logging.Log;
-import ws.com.google.android.mms.ContentType;
-import ws.com.google.android.mms.pdu.CharacterSets;
-import ws.com.google.android.mms.pdu.PduHeaders;
+//import ws.com.google.android.mms.ContentType;
+//import ws.com.google.android.mms.pdu.CharacterSets;
+//import ws.com.google.android.mms.pdu.PduHeaders;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedWriter;
@@ -330,7 +333,7 @@ public class XmlBackupWriter {
   private void addMMSAttributes(MessageRecord record, List<Attachment> attachmentList) throws IOException {
     // same as SMS.TYPE
     storeAttribute(Telephony.BaseMmsColumns.MESSAGE_BOX, MmsSmsColumns.Types.translateToSystemBaseType(record.getType()));
-    storeAttribute(Telephony.BaseMmsColumns.CONTENT_TYPE, ContentType.MULTIPART_RELATED);
+    storeAttribute(Telephony.BaseMmsColumns.CONTENT_TYPE,ContentType.MULTIPART_RELATED);
     // unknown what MESSAGE_TYPE does, but this works when importing MMS (128 worked too)
     storeAttribute(Telephony.BaseMmsColumns.MESSAGE_TYPE, 132);
     storeAttribute(Telephony.BaseMmsColumns.MESSAGE_ID, "Signal-" + record.getId());

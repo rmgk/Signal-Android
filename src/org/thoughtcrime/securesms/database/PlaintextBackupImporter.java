@@ -19,13 +19,13 @@ import org.thoughtcrime.securesms.database.backup.PlaintextBackupExporter;
 import org.thoughtcrime.securesms.database.backup.SmsBackupItem;
 import org.thoughtcrime.securesms.database.backup.XmlBackupReader;
 import org.thoughtcrime.securesms.database.backup.BackupItem;
+import org.thoughtcrime.securesms.mms.MmsException;
 import org.thoughtcrime.securesms.recipients.RecipientFactory;
 import org.thoughtcrime.securesms.recipients.Recipients;
 import org.thoughtcrime.securesms.util.Base64;
 import org.thoughtcrime.securesms.util.GroupUtil;
 import org.thoughtcrime.securesms.util.MediaUtil;
 import org.xmlpull.v1.XmlPullParserException;
-import ws.com.google.android.mms.MmsException;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -196,7 +196,7 @@ public class PlaintextBackupImporter {
     else addLongToStatement(statement, 8, sms.getSignalType());
     addNullToStatement(statement, 9); //REPLY_PATH_PRESENT
     addStringToStatement(statement, 10, sms.getSubject());
-    addEncryptedStingToStatement(masterCipher, statement, 11, sms.getBody());
+    addEncryptedStringToStatement(masterCipher, statement, 11, sms.getBody());
     addStringToStatement(statement, 12, sms.getServiceCenter());
     addLongToStatement(statement, 13, threadId);
   }

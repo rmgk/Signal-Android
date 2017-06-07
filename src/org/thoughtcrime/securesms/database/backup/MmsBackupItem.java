@@ -2,11 +2,11 @@ package org.thoughtcrime.securesms.database.backup;
 
 import android.provider.Telephony;
 import android.support.annotation.NonNull;
+import com.google.android.mms.pdu_alt.PduHeaders;
 import org.thoughtcrime.securesms.database.MmsAddresses;
 import org.whispersystems.libsignal.logging.Log;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
-import ws.com.google.android.mms.pdu.PduHeaders;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -1,11 +1,11 @@
 package org.thoughtcrime.securesms.database.backup;
 
 import android.util.Log;
+import com.android.mms.dom.smil.SmilDocumentImpl;
+import com.android.mms.dom.smil.parser.SmilXmlSerializer;
+import com.google.android.mms.ContentType;
 import org.thoughtcrime.securesms.attachments.Attachment;
 import org.thoughtcrime.securesms.database.model.MessageRecord;
-import org.thoughtcrime.securesms.dom.smil.SmilDocumentImpl;
-import org.thoughtcrime.securesms.dom.smil.parser.SmilXmlSerializer;
-import org.thoughtcrime.securesms.util.SmilUtil;
 import org.w3c.dom.smil.SMILDocument;
 import org.w3c.dom.smil.SMILElement;
 import org.w3c.dom.smil.SMILLayoutElement;
@@ -14,7 +14,6 @@ import org.w3c.dom.smil.SMILParElement;
 import org.w3c.dom.smil.SMILRegionElement;
 import org.w3c.dom.smil.SMILRegionMediaElement;
 import org.w3c.dom.smil.SMILRootLayoutElement;
-import ws.com.google.android.mms.ContentType;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.Charset;
@@ -22,6 +21,8 @@ import java.util.List;
 
 /* this class contains duplicated code from  org.thoughtcrime.securesms.util.SmilUtil */
 public class SmilFromRecord {
+
+  final static int ROOT_SIZE = 1024;
 
   static class AttachmentLocation {
     public final String location;
@@ -64,8 +65,8 @@ public class SmilFromRecord {
     headElement.appendChild(layoutElement);
 
     SMILRootLayoutElement rootLayoutElement = (SMILRootLayoutElement) document.createElement("root-layout");
-    rootLayoutElement.setWidth(SmilUtil.ROOT_WIDTH);
-    rootLayoutElement.setHeight(SmilUtil.ROOT_HEIGHT);
+    rootLayoutElement.setWidth(ROOT_SIZE);
+    rootLayoutElement.setHeight(ROOT_SIZE);
     layoutElement.appendChild(rootLayoutElement);
 
     SMILElement bodyElement = (SMILElement) document.createElement("body");
@@ -94,15 +95,15 @@ public class SmilFromRecord {
     SMILRegionElement region = (SMILRegionElement) document.createElement("region");
     if (ContentType.isTextType(part.getContentType())) {
       region.setId("Text");
-      region.setTop(SmilUtil.ROOT_HEIGHT);
+      region.setTop(ROOT_SIZE);
       region.setHeight(50);
     } else {
       region.setId("Image");
       region.setTop(0);
-      region.setHeight(SmilUtil.ROOT_HEIGHT);
+      region.setHeight(ROOT_SIZE);
     }
     region.setLeft(0);
-    region.setWidth(SmilUtil.ROOT_WIDTH);
+    region.setWidth(ROOT_SIZE);
     region.setFit("meet");
     return region;
   }
