@@ -35,6 +35,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -339,9 +340,6 @@ public class XmlBackupWriter {
     storeAttribute(Telephony.BaseMmsColumns.MESSAGE_ID, "Signal-" + record.getId());
 
     startParts();
-    List<SmilFromRecord.AttachmentLocation> attachmentLocations = new ArrayList<>();
-    int count = 0;
-    for (Attachment attachment: attachmentList) attachmentLocations.add(new SmilFromRecord.AttachmentLocation("attachment" + count, attachment.getContentType()));
 //    if (!TextUtils.isEmpty(record.getBody().getBody())) {
 //      attachmentLocations.add(new SmilFromRecord.AttachmentLocation("text_0", ContentType.TEXT_PLAIN));
 //    }
@@ -350,8 +348,13 @@ public class XmlBackupWriter {
       storeBodyAsPart(record);
     }
     for (int i = 0; i < attachmentList.size(); ++i) {
-      storeAttachmentAsPart(attachmentList.get(i), attachmentLocations.get(i).getLocation());
-      count++;
+      Attachment attachment = attachmentList.get(i);
+      String location = attachment.getLocation();
+      if (location == null) location = "attachment" + i;
+      if (Objects.equals(attachment.getContentType(), ContentType.IMAGE_JPEG) || Objects.equals(attachment.getContentType(), ContentType.IMAGE_JPG)) {
+        location += ".jpg";
+      }
+      storeAttachmentAsPart(attachmentList.get(i), location);
 
     }
 
